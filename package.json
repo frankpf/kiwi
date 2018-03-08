@@ -1,0 +1,13 @@
+{
+  "name": "kiwi",
+  "version": "0.0.1",
+  "main": "index.js",
+  "author": "Frank Paulo Filho <me@frankpf.com>",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^9.4.6",
+    "tslint": "^5.9.1",
+    "tslint-eslint-rules": "^5.1.0",
+    "typescript": "^2.8.0-dev.20180308"
+  }
+}
