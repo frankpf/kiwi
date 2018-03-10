@@ -1,3 +1,4 @@
+import { HAS_ERROR } from './error'
 import { readFileSync } from 'fs'
 import { Scanner } from './scanner'
 
@@ -15,7 +16,13 @@ async function main() {
 	const file = readFileSync(filename, 'utf8')
 
 	const ast = compile(file)
-	console.log(ast)
+	if (HAS_ERROR) {
+		process.exit(1)
+	}
+
+	for (const token of ast) {
+		console.log(token)
+	}
 }
 
 main()
