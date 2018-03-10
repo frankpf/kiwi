@@ -1,9 +1,9 @@
 import { readFileSync } from 'fs'
-import { Lexer } from './lexer'
+import { Scanner } from './scanner'
 
 function compile(source: string) {
-	const lexer = new Lexer(source)
-	const tokens = lexer.scanTokens()
+	const scanner = new Scanner(source)
+	const tokens = scanner.scanTokens()
 
 	return tokens
 }

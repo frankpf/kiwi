@@ -1,7 +1,7 @@
 import { Token, TokenType } from './token'
-import { reportError } from './error'
+import { error } from './error'
 
-export class Lexer {
+export class Scanner {
 	private static keywords: { [s: string]: TokenType } = {
 			if:     TokenType.If,
 			else:   TokenType.Else,
@@ -119,7 +119,7 @@ export class Lexer {
 			if (this.isAlpha(c)) {
 				this.identifier()
 			} else {
-				reportError(this.line, 'Unexpected character.')
+				error(this.line, 'Unexpected character.')
 			}
 			break
 		}
@@ -141,7 +141,7 @@ export class Lexer {
 		}
 
 		const id = this.source.substring(this.start, this.current)
-		const type = Lexer.keywords[id] || TokenType.Identifier
+		const type = Scanner.keywords[id] || TokenType.Identifier
 
 		this.addToken(type)
 	}
@@ -190,7 +190,7 @@ export class Lexer {
 
 		// Unterminated  string
 		if (this.isAtEnd()) {
-			reportError(this.line, 'Unterminated string')
+			error(this.line, 'Unterminated string')
 		}
 
 		// Consume the closing "
