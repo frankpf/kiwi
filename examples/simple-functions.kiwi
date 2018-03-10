@@ -1,0 +1,5 @@
+let x = 1;
+
+fun add(x: Double, y: Double) {
+	return x + y;
+}
