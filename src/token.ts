@@ -31,8 +31,8 @@ export enum TokenType {
 
 	// Literals
 	Identifier = 'Identifier',
-	NumberLiteral = 'NumberLiteral',
-	StringLiteral = 'StringLiteral',
+	NumberLit = 'NumberLit',
+	StringLit = 'StringLit',
 
 	// Keywords
 	If = 'If',
