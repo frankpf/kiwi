@@ -31,23 +31,23 @@ export class Parser {
 		if (this.match(TokenType.OpenParen)) {
 			const expr = this.expression()
 			this.consume(TokenType.CloseParen, 'Expected ")" after expression')
-			return new Syntax.Grouping(expr)
+			return Syntax.Grouping(expr)
 		}
 
 		// Unary
 		if (this.match(TokenType.Bang, TokenType.Minus)) {
 			const operator = this.previous()
 			const right = this.expression()
-			return new Syntax.Unary(operator, right)
+			return Syntax.Unary(operator, right)
 		}
 
 		// Literal
-		if (this.match(TokenType.False)) return new Syntax.Literal(false)
-		if (this.match(TokenType.True)) return new Syntax.Literal(true)
-		if (this.match(TokenType.Nil)) return new Syntax.Literal(null)
+		if (this.match(TokenType.False)) return Syntax.Literal(false)
+		if (this.match(TokenType.True)) return Syntax.Literal(true)
+		if (this.match(TokenType.Nil)) return Syntax.Literal(null)
 
 		if (this.match(TokenType.NumberLit, TokenType.StringLit)) {
-			return new Syntax.Literal(this.previous().literal)
+			return Syntax.Literal(this.previous().literal)
 		}
 
 		// TODO: Binary

@@ -4,10 +4,7 @@ import { Token, TokenType } from './token'
 /**
   * We use algebraic data types[1] to represent `Expr`s.
   *
-  * We use the helper function `mkAdtConstructor` to create
-  * each individual ADT constructor.
-  *
-  * With these interface constructors, callers can build types this way:
+  * With the interface constructors, callers can build types this way:
   *     Binary(<left>, <operator>, <right>)
   * instead of the more verbose:
   *     { type: 'binary', left: <left>, operator: <operator>, right: <right> }
@@ -19,7 +16,7 @@ export interface Literal {
 	type: 'literal'
 	value: any
 }
-export const Literal = mkAdtConstructor<Literal>('literal', ['value'])
+export const Literal = (value: any): Literal => ({ type: 'literal', value })
 
 
 export interface Unary {
@@ -27,7 +24,7 @@ export interface Unary {
 	operator: Token,
 	right: Expr,
 }
-export const Unary = mkAdtConstructor<Unary>('unary', ['operator', 'right'])
+export const Unary = (operator: Token, right: Expr): Unary => ({ type: 'unary', operator, right })
 
 
 export interface Binary {
@@ -36,14 +33,14 @@ export interface Binary {
 	operator: Token,
 	right: Expr
 }
-export const Binary = mkAdtConstructor<Binary>('binary', ['left', 'operator', 'right'])
+export const Binary = (left: Expr, operator: Token, right: Expr): Binary => ({ type: 'binary', left, operator, right })
 
 
 export interface Grouping {
 	type: 'grouping'
 	expression: Expr,
 }
-export const Grouping = mkAdtConstructor<Grouping>('grouping', ['expression'])
+export const Grouping = (expression: Expr): Grouping => ({ type: 'grouping', expression })
 
 
 export type Expr = Literal | Unary | Binary | Grouping
