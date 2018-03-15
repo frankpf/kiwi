@@ -1,4 +1,3 @@
-import { mkAdtConstructor } from './utils'
 import { Token, TokenType } from './token'
 
 /**
