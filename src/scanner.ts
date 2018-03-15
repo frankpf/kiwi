@@ -177,7 +177,7 @@ export class Scanner {
 			.filter(ch => ch != '_')
 			.join('')
 
-		this.addToken(TokenType.NumberLiteral, Number(num))
+		this.addToken(TokenType.NumberLit, Number(num))
 	}
 
 	private string() {
@@ -199,7 +199,7 @@ export class Scanner {
 
 		// Get everything but the quotes
 		const value = this.source.substring(this.start + 1, this.current - 1)
-		this.addToken(TokenType.StringLiteral, value)
+		this.addToken(TokenType.StringLit, value)
 	}
 
 	private peek(): string {
