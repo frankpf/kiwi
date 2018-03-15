@@ -1,50 +1,49 @@
+import { mkAdtConstructor } from './utils'
 import { Token, TokenType } from './token'
 
 /**
   * We use algebraic data types[1] to represent `Expr`s.
   *
-  * Ideally, we would like a syntax like Rust's tagged enums[2]
-  * but since TypeScript doesn't have that, we use classes instead of
-  * the more usual interfaces for each individual ADT type.
+  * We use the helper function `mkAdtConstructor` to create
+  * each individual ADT constructor.
   *
-  * With classes, callers can build types using the constructor:
-  *     new Binary(<left>, <operator>, <right>)
-  * versus the more verbose:
+  * With these interface constructors, callers can build types this way:
+  *     Binary(<left>, <operator>, <right>)
+  * instead of the more verbose:
   *     { type: 'binary', left: <left>, operator: <operator>, right: <right> }
   *
   * [1]: https://www.typescriptlang.org/docs/handbook/advanced-types.html
-  * [2]: https://doc.rust-lang.org/1.1.0/book/enums.html
   */
 
-export class Literal {
-	public readonly type = 'literal'
-	constructor(
-		public readonly value: any, // TODO: Use a custom `KiwiType`
-	) {}
+export interface Literal {
+	type: 'literal'
+	value: any
 }
+export const Literal = mkAdtConstructor<Literal>('literal', ['value'])
 
-export class Unary {
-	public readonly type = 'unary'
-	constructor(
-		public readonly operator: Token,
-		public readonly right: Expr,
-	) {}
-}
 
-export class Binary {
-	public readonly type = 'binary'
-	constructor(
-		public readonly left: Expr,
-		public readonly operator: Token,
-		public readonly right: Expr,
-	) {}
+export interface Unary {
+	type: 'unary'
+	operator: Token,
+	right: Expr,
 }
+export const Unary = mkAdtConstructor<Unary>('unary', ['operator', 'right'])
 
-export class Grouping {
-	public readonly type = 'grouping'
-	constructor(
-		public readonly expression: Expr,
-	) {}
+
+export interface Binary {
+	type: 'binary'
+	left: Expr,
+	operator: Token,
+	right: Expr
 }
+export const Binary = mkAdtConstructor<Binary>('binary', ['left', 'operator', 'right'])
+
+
+export interface Grouping {
+	type: 'grouping'
+	expression: Expr,
+}
+export const Grouping = mkAdtConstructor<Grouping>('grouping', ['expression'])
+
 
 export type Expr = Literal | Unary | Binary | Grouping
