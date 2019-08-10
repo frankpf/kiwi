@@ -1,6 +1,6 @@
 import {error} from './error'
 import {Token, TokenType} from './token'
-import * as Syntax from './syntax'
+import * as Ast from './ast'
 
 class ParseError extends Error {}
 
@@ -13,9 +13,17 @@ export class Parser {
 		'/': 40,
 	}
 
-	constructor(private readonly tokens: Array<Token>, private current = 0) {}
+	private constructor(
+		private readonly tokens: Array<Token>,
+		private current = 0,
+	) {}
 
-	public parse(): Syntax.Expr | null {
+	static parseTokens(tokens: Token[]): Ast.Expr | null {
+		const parser = new Parser(tokens)
+		return parser.parse()
+	}
+
+	private parse(): Ast.Expr | null {
 		try {
 			return this.expression()
 		} catch (err) {
@@ -23,28 +31,28 @@ export class Parser {
 		}
 	}
 
-	private expression(): Syntax.Expr {
+	private expression(): Ast.Expr {
 		// Grouping
 		if (this.match(TokenType.OpenParen)) {
 			const expr = this.expression()
 			this.consume(TokenType.CloseParen, 'Expected ")" after expression')
-			return Syntax.Grouping(expr)
+			return new Ast.Grouping(expr)
 		}
 
 		// Unary
 		if (this.match(TokenType.Bang, TokenType.Minus)) {
 			const operator = this.previous()
 			const right = this.expression()
-			return Syntax.Unary(operator, right)
+			return new Ast.Unary(operator, right)
 		}
 
 		// Literal
-		if (this.match(TokenType.False)) return Syntax.Literal(false)
-		if (this.match(TokenType.True)) return Syntax.Literal(true)
-		if (this.match(TokenType.Nil)) return Syntax.Literal(null)
+		if (this.match(TokenType.False)) return new Ast.Literal(false)
+		if (this.match(TokenType.True)) return new Ast.Literal(true)
+		if (this.match(TokenType.Nil)) return new Ast.Literal(null)
 
 		if (this.match(TokenType.NumberLit, TokenType.StringLit)) {
-			return Syntax.Literal(this.previous().literal)
+			return new Ast.Literal(this.previous().literal)
 		}
 
 		// TODO: Binary

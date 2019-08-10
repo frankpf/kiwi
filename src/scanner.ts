@@ -2,26 +2,43 @@ import {Token, TokenType} from './token'
 import {error} from './error'
 
 export class Scanner {
+	// prettier-ignore
 	private static keywords: {[s: string]: TokenType} = {
-		if: TokenType.If,
-		else: TokenType.Else,
-		for: TokenType.For,
-		while: TokenType.While,
-		fun: TokenType.Fun,
-		return: TokenType.Return,
-		true: TokenType.True,
-		false: TokenType.False,
-		nil: TokenType.Nil,
-		let: TokenType.Let,
+		'if': TokenType.If,
+		'else': TokenType.Else,
+		'for': TokenType.For,
+		'while': TokenType.While,
+		'fun': TokenType.Fun,
+		'return': TokenType.Return,
+		'true': TokenType.True,
+		'false': TokenType.False,
+		'nil': TokenType.Nil,
+		'let': TokenType.Let,
 	}
 
-	constructor(
+	private constructor(
 		private source: string,
 		private tokens: Token[] = [],
 		private current = 0,
 		private line = 1,
 		private start = 0,
 	) {}
+
+	static scanText(text: string): Token[] {
+		const scanner = new Scanner(text)
+		return scanner.scanTokens()
+	}
+
+	private scanTokens(): Token[] {
+		while (!this.isAtEnd()) {
+			this.start = this.current
+			this.scanToken()
+		}
+
+		/* We're done, append one final EOF token */
+		this.tokens.push(new Token(TokenType.Eof, '', null, this.line))
+		return this.tokens
+	}
 
 	private scanToken() {
 		const c = this.advance()
@@ -99,8 +116,9 @@ export class Scanner {
 				if (this.match('/')) {
 					// One-line comment
 					// Ignore everything up to \n or EOF
-					while (this.peek() != '\n' && !this.isAtEnd())
+					while (this.peek() != '\n' && !this.isAtEnd()) {
 						this.advance()
+					}
 				} else {
 					this.addToken(TokenType.Slash)
 				}
@@ -199,7 +217,7 @@ export class Scanner {
 			this.advance()
 		}
 
-		// Unterminated  string
+		// Unterminated string
 		if (this.isAtEnd()) {
 			error(this.line, 'Unterminated string')
 		}
@@ -242,16 +260,5 @@ export class Scanner {
 
 	private isAtEnd(): boolean {
 		return this.current >= this.source.length
-	}
-
-	scanTokens(): Token[] {
-		while (!this.isAtEnd()) {
-			this.start = this.current
-			this.scanToken()
-		}
-
-		/* We're done, append one final EOF token */
-		this.tokens.push(new Token(TokenType.Eof, '', null, this.line))
-		return this.tokens
 	}
 }
