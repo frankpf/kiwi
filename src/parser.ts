@@ -1,6 +1,7 @@
 import {error} from './error'
 import {Token, TokenType} from './token'
 import * as Ast from './ast'
+import {Lazy} from './utils'
 
 class ParseError extends Error {}
 
@@ -18,12 +19,12 @@ export class Parser {
 		private current = 0,
 	) {}
 
-	static parseTokens(tokens: Token[]): Ast.Expr | null {
+	static parseTokens(tokens: Token[]): Ast.Node | null {
 		const parser = new Parser(tokens)
 		return parser.parse()
 	}
 
-	private parse(): Ast.Expr | null {
+	private parse(): Ast.Node | null {
 		try {
 			return this.expression()
 		} catch (err) {
@@ -31,7 +32,8 @@ export class Parser {
 		}
 	}
 
-	private expression(): Ast.Expr {
+	private expression(): Ast.Node {
+		return this.equality()
 		// Grouping
 		if (this.match(TokenType.OpenParen)) {
 			const expr = this.expression()
@@ -59,6 +61,82 @@ export class Parser {
 
 		// Nothing
 		throw this.error(this.peek(), 'Expected expression')
+	}
+
+	private equality(): Ast.Node {
+		// equality -> comparison ( ( "!=" | "==" ) comparison )* ;
+		const op = this.comparison.bind(this)
+		const types = [TokenType.BangEqual, TokenType.EqualEqual]
+		return this.leftAssocBinOp(op, types)
+	}
+
+	private comparison(): Ast.Node {
+		// comparison -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
+		const op = this.addition.bind(this)
+		const types = [
+			TokenType.Greater,
+			TokenType.GreaterEqual,
+			TokenType.Less,
+			TokenType.LessEqual,
+		]
+		return this.leftAssocBinOp(op, types)
+	}
+	private addition(): Ast.Node {
+		// addition -> multiplication ( ( "-" | "+" ) multiplication )* ;
+		const op = this.multiplication.bind(this)
+		const types = [TokenType.Minus, TokenType.Plus]
+		return this.leftAssocBinOp(op, types)
+	}
+	private multiplication(): Ast.Node {
+		// multiplication -> unary ( ( "/" | "*" ) unary )* ;
+		const op = this.unary.bind(this)
+		const types = [TokenType.Slash, TokenType.Star]
+		return this.leftAssocBinOp(op, types)
+	}
+	private unary(): Ast.Node {
+		// unary -> ( "!" | "-" ) unary | primary ;
+		if (this.match(TokenType.Bang, TokenType.Minus)) {
+			const operator = this.previous()
+			const right = this.unary()
+			return new Ast.Unary(operator, right)
+		}
+
+		return this.primary()
+	}
+	private primary(): Ast.Node {
+		// primary -> NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")" ;
+		if (this.match(TokenType.False)) {
+			return new Ast.Literal(false)
+		}
+
+		if (this.match(TokenType.True)) {
+			return new Ast.Literal(true)
+		}
+
+		if (this.match(TokenType.Nil)) {
+			return new Ast.Literal(null)
+		}
+
+		if (this.match(TokenType.NumberLit, TokenType.StringLit)) {
+			return new Ast.Literal(this.previous().literal)
+		}
+
+		if (this.match(TokenType.OpenParen)) {
+			const expr = this.expression()
+			this.consume(TokenType.CloseParen, 'Expected ")" after expression.')
+			return new Ast.Grouping(expr)
+		}
+
+		throw this.error(this.peek(), 'Expected expression.')
+	}
+	private leftAssocBinOp(operation: Lazy<Ast.Node>, types: TokenType[]) {
+		let expr = operation()
+		while (this.match(...types)) {
+			const operator = this.previous()
+			const right = operation()
+			expr = new Ast.Binary(expr, operator, right)
+		}
+		return expr
 	}
 
 	private consume(type: TokenType, message: string): Token {

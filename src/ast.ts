@@ -25,3 +25,4 @@ export class Grouping {
 }
 
 export type Expr = Literal | Unary | Binary | Grouping
+export type Node = Expr
