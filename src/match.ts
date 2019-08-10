@@ -16,29 +16,32 @@ type TaggedUnion<Tag> = {
 	[Tag]: string
 }
 
-type DefaultMatcher<R> = {
-	default(): R
-}
-
 type StrictMatchers<U extends TaggedUnion<Tag>, R> = {
 	[Variant in U[Tag]]: MatchingFunc<U, Variant, R>
 }
 
-type Matchers<U extends TaggedUnion<Tag>, R> =
-	| StrictMatchers<U, R>
-	| Partial<StrictMatchers<U, R>> & DefaultMatcher<R>
+export function matchAll<U extends TaggedUnion<Tag>, R>(
+	matchers: StrictMatchers<U, R>,
+) {
+	const matchersAny = matchers as any
+	return (union: U): R => {
+		const tag = union[Tag]
+		const fn = matchersAny[tag]
+		return fn(union)
+	}
+}
 
-import * as Ast from './ast'
+type DefaultMatcher<R> = {
+	default(): R
+}
 
-type ZZZ = Z extends Record<'type', 'literal'> ? true : never
-type ZZZ_ = DiscriminateUnion<Z, 'type', 'binary'>
+// prettier-ignore
+type PartialMatchers<U extends TaggedUnion<Tag>, R> = 
+	Partial<StrictMatchers<U, R>> & DefaultMatcher<R>
 
-type KKK = Record<'type', 'literal'>
-
-const X = new Ast.Literal('x') as Ast.Expr
-type Z = typeof X
-
-export function match<U extends TaggedUnion<Tag>, R>(matchers: Matchers<U, R>) {
+export function matchPartial<U extends TaggedUnion<Tag>, R>(
+	matchers: PartialMatchers<U, R>,
+) {
 	const matchersAny = matchers as any
 	return (union: U): R => {
 		const tag = union[Tag]

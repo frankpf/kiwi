@@ -1,17 +1,17 @@
 import {Token} from './token'
 
 export class Literal {
-	readonly type = 'literal'
+	readonly type = 'Literal'
 	constructor(readonly value: any) {}
 }
 
 export class Unary {
-	readonly type = 'unary'
+	readonly type = 'Unary'
 	constructor(readonly operator: Token, readonly right: Expr) {}
 }
 
 export class Binary {
-	readonly type = 'binary'
+	readonly type = 'Binary'
 	constructor(
 		readonly left: Expr,
 		readonly operator: Token,
@@ -20,7 +20,7 @@ export class Binary {
 }
 
 export class Grouping {
-	readonly type = 'grouping'
+	readonly type = 'Grouping'
 	constructor(readonly expression: Expr) {}
 }
 

@@ -1,20 +1,20 @@
 import * as Ast from './ast'
-import {match} from './match'
+import {matchAll} from './match'
 
-export const printAst = match<Ast.Expr, string>({
-	literal({value}) {
+export const printAst = matchAll<Ast.Expr, string>({
+	Literal({value}) {
 		if (value === null) {
 			return 'nil'
 		}
 		return value.toString()
 	},
-	unary({operator, right}) {
+	Unary({operator, right}) {
 		return parenthesize(operator.lexeme, right)
 	},
-	binary({left, operator, right}) {
+	Binary({left, operator, right}) {
 		return parenthesize(operator.lexeme, left, right)
 	},
-	grouping({expression}) {
+	Grouping({expression}) {
 		return parenthesize('group', expression)
 	},
 })
