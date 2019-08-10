@@ -1,6 +1,6 @@
-import { HAS_ERROR } from './error'
-import { readFileSync } from 'fs'
-import { Scanner } from './scanner'
+import {HAS_ERROR} from './error'
+import {readFileSync} from 'fs'
+import {Scanner} from './scanner'
 
 function compile(source: string) {
 	const scanner = new Scanner(source)

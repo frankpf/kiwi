@@ -1,8 +1,8 @@
-import { Token, TokenType } from './token'
+import {Token, TokenType} from './token'
 export let HAS_ERROR = false
 
-export function error(item: Token         , message: string): void
-export function error(item: number        , message: string): void
+export function error(item: Token, message: string): void
+export function error(item: number, message: string): void
 export function error(item: number | Token, message: string): void {
 	if (typeof item === 'number') {
 		report(item, '', message)

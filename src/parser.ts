@@ -1,11 +1,11 @@
-import { error } from './error'
-import { Token, TokenType } from './token'
+import {error} from './error'
+import {Token, TokenType} from './token'
 import * as Syntax from './syntax'
 
 class ParseError extends Error {}
 
 export class Parser {
-	private readonly binOpPrecedences: { [op: string]: number } = {
+	private readonly binOpPrecedences: {[op: string]: number} = {
 		'<': 10,
 		'+': 20,
 		'-': 20,
@@ -13,10 +13,7 @@ export class Parser {
 		'/': 40,
 	}
 
-	constructor(
-		private readonly tokens: Array<Token>,
-		private current = 0,
-	) {}
+	constructor(private readonly tokens: Array<Token>, private current = 0) {}
 
 	public parse(): Syntax.Expr | null {
 		try {
@@ -78,13 +75,13 @@ export class Parser {
 			}
 
 			switch (this.peek().type) {
-			case TokenType.Fun:
-			case TokenType.Let:
-			case TokenType.For:
-			case TokenType.If:
-			case TokenType.While:
-			case TokenType.Return:
-				return
+				case TokenType.Fun:
+				case TokenType.Let:
+				case TokenType.For:
+				case TokenType.If:
+				case TokenType.While:
+				case TokenType.Return:
+					return
 			}
 
 			this.advance()

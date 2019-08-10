@@ -1,18 +1,18 @@
-import { Token, TokenType } from './token'
-import { error } from './error'
+import {Token, TokenType} from './token'
+import {error} from './error'
 
 export class Scanner {
-	private static keywords: { [s: string]: TokenType } = {
-			if:     TokenType.If,
-			else:   TokenType.Else,
-			for:    TokenType.For,
-			while:  TokenType.While,
-			fun:    TokenType.Fun,
-			return: TokenType.Return,
-			true:   TokenType.True,
-			false:  TokenType.False,
-			nil:    TokenType.Nil,
-			let:    TokenType.Let,
+	private static keywords: {[s: string]: TokenType} = {
+		if: TokenType.If,
+		else: TokenType.Else,
+		for: TokenType.For,
+		while: TokenType.While,
+		fun: TokenType.Fun,
+		return: TokenType.Return,
+		true: TokenType.True,
+		false: TokenType.False,
+		nil: TokenType.Nil,
+		let: TokenType.Let,
 	}
 
 	constructor(
@@ -26,109 +26,120 @@ export class Scanner {
 	private scanToken() {
 		const c = this.advance()
 		switch (c) {
-		case '(':
-			this.addToken(TokenType.OpenParen)
-			break
-		case ')':
-			this.addToken(TokenType.CloseParen)
-			break
-		case '{':
-			this.addToken(TokenType.OpenBrace)
-			break
-		case '}':
-			this.addToken(TokenType.CloseBrace)
-			break
-		case '[':
-			this.addToken(TokenType.OpenBracket)
-			break
-		case ']':
-			this.addToken(TokenType.CloseBracket)
-			break
-		case ',':
-			this.addToken(TokenType.Comma)
-			break
-		case ':':
-			this.addToken(TokenType.Colon)
-			break
-		case '.':
-			this.addToken(TokenType.Dot)
-			break
-		case '-':
-			this.addToken(TokenType.Minus)
-			break
-		case '+':
-			this.addToken(TokenType.Plus)
-			break
-		case ';':
-			this.addToken(TokenType.Semicolon)
-			break
-		case '*':
-			this.addToken(TokenType.Star)
-			break
-		case '!':
-			this.addToken(this.match('=') ? TokenType.BangEqual : TokenType.Bang)
-			break
-		case '=':
-			this.addToken(this.match('=') ? TokenType.EqualEqual : TokenType.Equal)
-			break
-		case '<':
-			this.addToken(this.match('=') ? TokenType.LessEqual : TokenType.Less)
-			break
-		case '>':
-			this.addToken(this.match('=') ? TokenType.GreaterEqual : TokenType.Greater)
-			break
-		case '&':
-			this.addToken(this.match('&') ? TokenType.And : TokenType.BitAnd)
-			break
-		case '|':
-			this.addToken(this.match('|') ? TokenType.Or : TokenType.BitOr)
-			break
-		case '/':
-			if (this.match('/')) {
-				// One-line comment
-				// Ignore everything up to \n or EOF
-				while (this.peek() != '\n' && !this.isAtEnd()) this.advance()
-			} else {
-				this.addToken(TokenType.Slash)
-			}
-			break
-		case '"':
-			this.string()
-			break
-		/* Ignore whitespace */
-		case ' ':
-		case '\r':
-		case '\t':
-			break
-		case '\n':
-			this.line++
-			break
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			this.number()
-			break
-		default:
-			if (this.isAlpha(c)) {
-				this.identifier()
-			} else {
-				error(this.line, 'Unexpected character.')
-			}
-			break
+			case '(':
+				this.addToken(TokenType.OpenParen)
+				break
+			case ')':
+				this.addToken(TokenType.CloseParen)
+				break
+			case '{':
+				this.addToken(TokenType.OpenBrace)
+				break
+			case '}':
+				this.addToken(TokenType.CloseBrace)
+				break
+			case '[':
+				this.addToken(TokenType.OpenBracket)
+				break
+			case ']':
+				this.addToken(TokenType.CloseBracket)
+				break
+			case ',':
+				this.addToken(TokenType.Comma)
+				break
+			case ':':
+				this.addToken(TokenType.Colon)
+				break
+			case '.':
+				this.addToken(TokenType.Dot)
+				break
+			case '-':
+				this.addToken(TokenType.Minus)
+				break
+			case '+':
+				this.addToken(TokenType.Plus)
+				break
+			case ';':
+				this.addToken(TokenType.Semicolon)
+				break
+			case '*':
+				this.addToken(TokenType.Star)
+				break
+			case '!':
+				this.addToken(
+					this.match('=') ? TokenType.BangEqual : TokenType.Bang,
+				)
+				break
+			case '=':
+				this.addToken(
+					this.match('=') ? TokenType.EqualEqual : TokenType.Equal,
+				)
+				break
+			case '<':
+				this.addToken(
+					this.match('=') ? TokenType.LessEqual : TokenType.Less,
+				)
+				break
+			case '>':
+				this.addToken(
+					this.match('=')
+						? TokenType.GreaterEqual
+						: TokenType.Greater,
+				)
+				break
+			case '&':
+				this.addToken(
+					this.match('&') ? TokenType.And : TokenType.BitAnd,
+				)
+				break
+			case '|':
+				this.addToken(this.match('|') ? TokenType.Or : TokenType.BitOr)
+				break
+			case '/':
+				if (this.match('/')) {
+					// One-line comment
+					// Ignore everything up to \n or EOF
+					while (this.peek() != '\n' && !this.isAtEnd())
+						this.advance()
+				} else {
+					this.addToken(TokenType.Slash)
+				}
+				break
+			case '"':
+				this.string()
+				break
+			/* Ignore whitespace */
+			case ' ':
+			case '\r':
+			case '\t':
+				break
+			case '\n':
+				this.line++
+				break
+			case '0':
+			case '1':
+			case '2':
+			case '3':
+			case '4':
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+			case '9':
+				this.number()
+				break
+			default:
+				if (this.isAlpha(c)) {
+					this.identifier()
+				} else {
+					error(this.line, 'Unexpected character.')
+				}
+				break
 		}
 	}
 
 	private isAlpha(c: string): boolean {
-		return (c >= 'a' && c <= 'z') ||
-		       (c >= 'A' && c <= 'Z') ||
-		       c == '_'
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
 	}
 
 	private isAlphaNumeric(c: string): boolean {
@@ -195,7 +206,6 @@ export class Scanner {
 
 		// Consume the closing "
 		this.advance()
-
 
 		// Get everything but the quotes
 		const value = this.source.substring(this.start + 1, this.current - 1)
