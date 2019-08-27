@@ -6,11 +6,19 @@
   "license": "ISC",
   "dependencies": {
     "@types/node": "^12.7.1",
+    "fp-ts-codegen": "^0.4.0",
+    "io-ts": "^2.0.1",
+    "llvm-node": "^2.1.0",
+    "source-map-support": "^0.5.13",
     "tslint": "^5.18.0",
     "tslint-eslint-rules": "^5.4.0",
-    "typescript": "^3.6.0-dev.20190809"
+    "typescript": "^3.7.0-dev.20190824",
+    "unionize": "^3.0.2"
   },
   "devDependencies": {
     "prettier": "^1.18.2"
+  },
+  "engines": {
+    "node": "^10"
   }
 }
