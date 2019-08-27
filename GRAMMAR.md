@@ -1,15 +1,22 @@
-expression : literal
-           | unary
-		   | binary
-		   | grouping ;
+<!-- prettier-ignore-start -->
 
-literal   : NUMBER | STRING | "true" | "false" | "nil" ;
+program   -> statement* EOF .
+statement -> expression_stmt
+           | print_stmt
+           | var_decl .
 
-grouping  : "(" expr ")" ;
+expression_stmt -> expression ";" .
+print_stmt      -> "print" expression ";" .
+let_decl_stmt   -> "let" IDENTIFIER ( "=" expr )? ";" .
 
-unary     : unary_op expr ;
-unary_op  : "!" | "-" ;
-
-binary    : expr binary_op expr ;
-binary_op : "==" | "!=" | ">" | ">=" | "<" | "<="
-          | "+"  | "-"  | "*" | "/" ;
+expression        -> equality ;
+equality          -> comparison ( ( "!=" | "==" ) comparison )* .
+comparison        -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* .
+addition          -> multiplication ( ( "-" | "+" ) multiplication )* .
+multiplication    -> unary ( ( "/" | "*" ) unary )* .
+unary             -> ( "!" | "-" ) unary
+                   | primary .
+primary           -> NUMBER | STRING | IDENTIFIER
+                   | "false" | "true" | "nil"
+                   | "(" expression ")" .
+<!-- prettier-ignore-end -->
