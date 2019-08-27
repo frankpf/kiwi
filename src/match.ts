@@ -1,4 +1,6 @@
-const Tag = 'type'
+import {AssertionError} from 'assert'
+
+const Tag = '_tag'
 type Tag = typeof Tag
 
 /* Source: https://github.com/Microsoft/TypeScript/pull/21316#issuecomment-364982638 */

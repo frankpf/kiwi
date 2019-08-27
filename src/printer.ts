@@ -1,7 +1,7 @@
 import * as Ast from './ast'
 import {matchAll} from './match'
 
-export const printAst = matchAll<Ast.Node, string>({
+export const printAst = matchAll<Ast.Expr, string>({
 	Literal({value}) {
 		if (value === null) {
 			return 'nil'
@@ -17,9 +17,12 @@ export const printAst = matchAll<Ast.Node, string>({
 	Grouping({expression}) {
 		return parenthesize('group', expression)
 	},
+	LetAccess({identifier}) {
+		return `(let-ref ${identifier})`
+	},
 })
 
-function parenthesize(name: string, ...expressions: Ast.Node[]) {
+function parenthesize(name: string, ...expressions: Ast.Expr[]) {
 	let str = `(${name}`
 	for (const expr of expressions) {
 		str += ' '

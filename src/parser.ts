@@ -19,58 +19,85 @@ export class Parser {
 		private current = 0,
 	) {}
 
-	static parseTokens(tokens: Token[]): Ast.Node | null {
+	static parseTokens(tokens: Token[]): (Ast.Stmt | null)[] | null {
 		const parser = new Parser(tokens)
 		return parser.parse()
 	}
 
-	private parse(): Ast.Node | null {
+	private parse(): (Ast.Stmt | null)[] | null {
 		try {
-			return this.expression()
+			return this.program()
 		} catch (err) {
 			return null
 		}
 	}
 
-	private expression(): Ast.Node {
-		return this.equality()
-		// Grouping
-		if (this.match(TokenType.OpenParen)) {
-			const expr = this.expression()
-			this.consume(TokenType.CloseParen, 'Expected ")" after expression')
-			return new Ast.Grouping(expr)
+	private program(): (Ast.Stmt | null)[] {
+		const statements = [] as (Ast.Stmt | null)[]
+		while (!this.isAtEnd()) {
+			statements.push(this.statement())
 		}
-
-		// Unary
-		if (this.match(TokenType.Bang, TokenType.Minus)) {
-			const operator = this.previous()
-			const right = this.expression()
-			return new Ast.Unary(operator, right)
-		}
-
-		// Literal
-		if (this.match(TokenType.False)) return new Ast.Literal(false)
-		if (this.match(TokenType.True)) return new Ast.Literal(true)
-		if (this.match(TokenType.Nil)) return new Ast.Literal(null)
-
-		if (this.match(TokenType.NumberLit, TokenType.StringLit)) {
-			return new Ast.Literal(this.previous().literal)
-		}
-
-		// TODO: Binary
-
-		// Nothing
-		throw this.error(this.peek(), 'Expected expression')
+		return statements
 	}
 
-	private equality(): Ast.Node {
+	private statement(): Ast.Stmt | null {
+		try {
+			if (this.match(TokenType.Print)) {
+				return this.finishPrintStatement()
+			}
+
+			if (this.match(TokenType.Let)) {
+				return this.finishLetDeclarationStatement()
+			}
+
+			return this.expressionStatement()
+		} catch (err) {
+			this.synchronize()
+			return null
+		}
+	}
+
+	private finishLetDeclarationStatement() {
+		const identifier = this.consume(
+			TokenType.Identifier,
+			'Expected variable name',
+		)
+		let initializer: Ast.Expr | undefined = undefined
+		if (this.match(TokenType.Equal)) {
+			initializer = this.expression()
+		}
+		this.consume(TokenType.Semicolon, 'Expected ";" after let initializer')
+		return new Ast.Stmt.LetDeclaration(identifier, initializer)
+	}
+
+	private identifier(): string {
+		return 'a'
+	}
+
+	private finishPrintStatement() {
+		const expr = this.expression()
+		this.consume(TokenType.Semicolon, 'Expected ";" after expression')
+		return new Ast.Stmt.Print(expr)
+	}
+
+	private expressionStatement() {
+		const expr = this.expression()
+		this.consume(TokenType.Semicolon, 'Expected ";" after expression')
+		return new Ast.Stmt.Expression(expr)
+	}
+
+	private expression(): Ast.Expr {
+		return this.equality()
+	}
+
+	private equality(): Ast.Expr {
 		// equality -> comparison ( ( "!=" | "==" ) comparison )* ;
 		const op = this.comparison.bind(this)
 		const types = [TokenType.BangEqual, TokenType.EqualEqual]
 		return this.leftAssocBinOp(op, types)
 	}
 
-	private comparison(): Ast.Node {
+	private comparison(): Ast.Expr {
 		// comparison -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
 		const op = this.addition.bind(this)
 		const types = [
@@ -81,60 +108,67 @@ export class Parser {
 		]
 		return this.leftAssocBinOp(op, types)
 	}
-	private addition(): Ast.Node {
+	private addition(): Ast.Expr {
 		// addition -> multiplication ( ( "-" | "+" ) multiplication )* ;
 		const op = this.multiplication.bind(this)
 		const types = [TokenType.Minus, TokenType.Plus]
 		return this.leftAssocBinOp(op, types)
 	}
-	private multiplication(): Ast.Node {
+	private multiplication(): Ast.Expr {
 		// multiplication -> unary ( ( "/" | "*" ) unary )* ;
 		const op = this.unary.bind(this)
 		const types = [TokenType.Slash, TokenType.Star]
 		return this.leftAssocBinOp(op, types)
 	}
-	private unary(): Ast.Node {
+	private unary(): Ast.Expr {
 		// unary -> ( "!" | "-" ) unary | primary ;
 		if (this.match(TokenType.Bang, TokenType.Minus)) {
 			const operator = this.previous()
 			const right = this.unary()
-			return new Ast.Unary(operator, right)
+			return new Ast.Expr.Unary(operator, right)
 		}
 
 		return this.primary()
 	}
-	private primary(): Ast.Node {
+	private primary(): Ast.Expr {
 		// primary -> NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")" ;
 		if (this.match(TokenType.False)) {
-			return new Ast.Literal(false)
+			return new Ast.Expr.Literal(false)
 		}
 
 		if (this.match(TokenType.True)) {
-			return new Ast.Literal(true)
+			return new Ast.Expr.Literal(true)
 		}
 
 		if (this.match(TokenType.Nil)) {
-			return new Ast.Literal(null)
+			return new Ast.Expr.Literal(null)
 		}
 
 		if (this.match(TokenType.NumberLit, TokenType.StringLit)) {
-			return new Ast.Literal(this.previous().literal)
+			return new Ast.Expr.Literal(this.previous().literal)
+		}
+
+		if (this.match(TokenType.Identifier)) {
+			return new Ast.Expr.LetAccess(this.previous())
 		}
 
 		if (this.match(TokenType.OpenParen)) {
 			const expr = this.expression()
 			this.consume(TokenType.CloseParen, 'Expected ")" after expression.')
-			return new Ast.Grouping(expr)
+			return new Ast.Expr.Grouping(expr as Ast.Expr)
 		}
 
 		throw this.error(this.peek(), 'Expected expression.')
 	}
-	private leftAssocBinOp(operation: Lazy<Ast.Node>, types: TokenType[]) {
+	private leftAssocBinOp(
+		operation: Lazy<Ast.Expr>,
+		types: TokenType[],
+	): Ast.Expr {
 		let expr = operation()
 		while (this.match(...types)) {
 			const operator = this.previous()
 			const right = operation()
-			expr = new Ast.Binary(expr, operator, right)
+			expr = new Ast.Expr.Binary(expr, operator, right)
 		}
 		return expr
 	}
