@@ -44,19 +44,19 @@ export namespace Expr {
 export type Stmt = Stmt.Expression | Stmt.Print | Stmt.LetDeclaration
 export namespace Stmt {
 	export class Expression {
-		static readonly uri = 'Stmt/Expression'
+		static readonly uri = 'Expression'
 		readonly _tag = Expression.uri
 		constructor(readonly expression: Expr) {}
 	}
 
 	export class Print {
-		static readonly uri = 'Stmt/Print'
+		static readonly uri = 'Print'
 		readonly _tag = Print.uri
 		constructor(readonly expression: Expr) {}
 	}
 
 	export class LetDeclaration {
-		static readonly uri = 'Stmt/LetDeclaration'
+		static readonly uri = 'LetDeclaration'
 		readonly _tag = LetDeclaration.uri
 		constructor(readonly identifier: Token, readonly initializer?: Expr) {}
 	}
