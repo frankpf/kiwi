@@ -70,10 +70,6 @@ export class Parser {
 		return new Ast.Stmt.LetDeclaration(identifier, initializer)
 	}
 
-	private identifier(): string {
-		return 'a'
-	}
-
 	private finishPrintStatement() {
 		const expr = this.expression()
 		this.consume(TokenType.Semicolon, 'Expected ";" after expression')
