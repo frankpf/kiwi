@@ -90,14 +90,14 @@ function compileExpr(node: Ast.Expr): llvm.Value {
 
 function compileStmt(node: Ast.Stmt, topLevelFunc: llvm.Function) {
 	const matcher = matchAll<Ast.Stmt, void>({
-		[Ast.Stmt.Print.uri]({expression}) {
+		Print({expression}) {
 			const expr = compileExpr(expression)
 			builder.createCall(globals.print, [expr])
 		},
-		[Ast.Stmt.Expression.uri]({expression}) {
+		Expression({expression}) {
 			// TODO
 		},
-		[Ast.Stmt.LetDeclaration.uri]({identifier, initializer}) {
+		LetDeclaration({identifier, initializer}) {
 			const insertBlock = builder.getInsertBlock()
 			if (insertBlock === undefined) {
 				throw new Error('Undefined insert block')
