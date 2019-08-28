@@ -33,6 +33,7 @@ async function main() {
 let a = 9;
 print a;
 let b = 2;
+b = 5;
 print b;
 print a + b;
 `

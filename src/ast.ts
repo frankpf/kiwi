@@ -41,7 +41,11 @@ export namespace Expr {
 /*=================
  Statements
  ==================*/
-export type Stmt = Stmt.Expression | Stmt.Print | Stmt.LetDeclaration
+export type Stmt =
+	| Stmt.Expression
+	| Stmt.Print
+	| Stmt.LetDeclaration
+	| Stmt.Assignment
 export namespace Stmt {
 	export class Expression {
 		static readonly uri = 'Expression'
@@ -59,6 +63,11 @@ export namespace Stmt {
 		static readonly uri = 'LetDeclaration'
 		readonly _tag = LetDeclaration.uri
 		constructor(readonly identifier: Token, readonly initializer?: Expr) {}
+	}
+
+	export class Assignment {
+		static readonly uri = 'Assignment'
+		readonly _tag = Assignment.uri
 	}
 }
 
