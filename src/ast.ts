@@ -68,6 +68,7 @@ export namespace Stmt {
 	export class Assignment {
 		static readonly uri = 'Assignment'
 		readonly _tag = Assignment.uri
+		constructor(readonly name: Token, value: Expr) {}
 	}
 }
 
