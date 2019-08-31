@@ -197,6 +197,7 @@ export class Scanner {
 			this.advance()
 		}
 
+		// FIXME: Numbers ending with underscores should not be allowed
 		while (this.isDigit(this.peek()) || this.peek() == '_') {
 			this.advance()
 		}
