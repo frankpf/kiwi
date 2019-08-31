@@ -96,6 +96,7 @@ function compileStmt(node: Ast.Stmt, topLevelFunc: llvm.Function) {
 		},
 		Expression({expression}) {
 			// TODO
+			throw new Error('Expression statements not implemented')
 		},
 		LetDeclaration({identifier, initializer}) {
 			const insertBlock = builder.getInsertBlock()
@@ -119,6 +120,10 @@ function compileStmt(node: Ast.Stmt, topLevelFunc: llvm.Function) {
 			builder.createStore(initValue, alloca)
 
 			namedValues.set(identifier.lexeme, alloca)
+		},
+		Assignment({name, value}) {
+			// TODO
+			throw new Error('Assignment not implemented')
 		},
 	})
 
