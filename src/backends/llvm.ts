@@ -11,7 +11,7 @@ const builder = new llvm.IRBuilder(context)
 const namedValues = new Map<string, llvm.AllocaInst>()
 const globals = createGlobals(context, module)
 
-function createEntryBlockAlloca(func: llvm.Function, identifier: string) {
+function createEntryBlockAlloca(func: llvm.Function, name: string) {
 	const bb = func.getEntryBlock()
 	if (!bb) {
 		throw new Error(`No entry block for function ${func}`)
@@ -20,8 +20,12 @@ function createEntryBlockAlloca(func: llvm.Function, identifier: string) {
 	return tmpBuilder.createAlloca(
 		llvm.Type.getDoubleTy(context),
 		undefined,
-		identifier,
+		name,
 	)
+}
+
+function i1ToDouble(i1: llvm.Value) {
+	return builder.createUIToFP(i1, llvm.Type.getDoubleTy(context))
 }
 
 function compileExpr(node: Ast.Expr): llvm.Value {
@@ -50,17 +54,29 @@ function compileExpr(node: Ast.Expr): llvm.Value {
 
 			switch (operator.type) {
 				case TokenType.EqualEqual:
-					return builder.createFCmpUEQ(leftResult, rightResult)
+					return i1ToDouble(
+						builder.createFCmpUEQ(leftResult, rightResult),
+					)
 				case TokenType.BangEqual:
-					return builder.createFCmpUNE(leftResult, rightResult)
+					return i1ToDouble(
+						builder.createFCmpUNE(leftResult, rightResult),
+					)
 				case TokenType.Greater:
-					return builder.createFCmpUGT(leftResult, rightResult)
+					return i1ToDouble(
+						builder.createFCmpUGT(leftResult, rightResult),
+					)
 				case TokenType.GreaterEqual:
-					return builder.createFCmpUGE(leftResult, rightResult)
+					return i1ToDouble(
+						builder.createFCmpUGE(leftResult, rightResult),
+					)
 				case TokenType.Less:
-					return builder.createFCmpULT(leftResult, rightResult)
+					return i1ToDouble(
+						builder.createFCmpULT(leftResult, rightResult),
+					)
 				case TokenType.LessEqual:
-					return builder.createFCmpULE(leftResult, rightResult)
+					return i1ToDouble(
+						builder.createFCmpULE(leftResult, rightResult),
+					)
 				case TokenType.Minus:
 					return builder.createFSub(leftResult, rightResult)
 				case TokenType.Plus:
@@ -82,6 +98,87 @@ function compileExpr(node: Ast.Expr): llvm.Value {
 			}
 			return builder.createLoad(variable, identifier.lexeme)
 		},
+		Block({statements}) {
+			const parentFn = builder.getInsertBlock()!.parent!
+			for (let i = 0; i < statements.length - 1; i++) {
+				compileStmt(statements[i], topLevelFunc)
+			}
+
+			const lastStatement = statements[statements.length - 1]
+			if (lastStatement._tag === 'Expression') {
+				lastStatement
+				const expr = lastStatement.expression
+				const val = compileExpr(expr)
+				return val
+			}
+
+			compileStmt(lastStatement, topLevelFunc)
+			return llvm.ConstantFP.get(context, 0)
+		},
+		If({condition, thenBlock, elseTail}) {
+			const conditionValue = compileExpr(condition)
+
+			const zero = llvm.ConstantFP.get(context, 0)
+			const conditionCode = builder.createFCmpONE(
+				conditionValue,
+				zero,
+				'ifcond',
+			)
+
+			const insertBlock = builder.getInsertBlock()
+			assertExists(insertBlock, 'Insert block not found')
+			const parentFn = insertBlock.parent
+			assertExists(parentFn, `Insert block has no parent: ${insertBlock}`)
+
+			// Create blocks for then and else
+			let thenBb = llvm.BasicBlock.create(context, 'then', parentFn)
+			let elseBb = llvm.BasicBlock.create(context, 'else')
+			const mergeBb = llvm.BasicBlock.create(context, 'ifcont')
+
+			const nextBb = elseTail === undefined ? mergeBb : elseBb
+			builder.createCondBr(conditionCode, thenBb, nextBb)
+
+			// Then block
+			builder.setInsertionPoint(thenBb)
+			const thenValue = compileExpr(thenBlock)
+			builder.createBr(mergeBb)
+
+			thenBb = builder.getInsertBlock()!
+
+			// Else block
+			let elseValue: llvm.Value | undefined
+			if (elseTail !== undefined) {
+				parentFn.addBasicBlock(elseBb)
+				builder.setInsertionPoint(elseBb)
+				if (true) {
+					elseValue = compileExpr(elseTail)
+					builder.createBr(mergeBb)
+					elseBb = builder.getInsertBlock()!
+				} else {
+					throw new Error('Else if not implemented yet')
+				}
+			}
+
+			// Merge block
+			parentFn.addBasicBlock(mergeBb)
+			builder.setInsertionPoint(mergeBb)
+			const phiNode = builder.createPhi(
+				llvm.Type.getDoubleTy(context),
+				2,
+				'iftmp',
+			)
+
+			phiNode.addIncoming(thenValue, thenBb)
+			if (elseValue !== undefined) {
+				phiNode.addIncoming(elseValue, elseBb)
+			} else {
+				phiNode.addIncoming(
+					llvm.ConstantFP.get(context, 0),
+					insertBlock,
+				)
+			}
+			return phiNode
+		},
 	})
 
 	const result = matcher(node)
@@ -95,8 +192,7 @@ function compileStmt(node: Ast.Stmt, topLevelFunc: llvm.Function) {
 			builder.createCall(globals.print, [expr])
 		},
 		Expression({expression}) {
-			// TODO
-			throw new Error('Expression statements not implemented')
+			compileExpr(expression)
 		},
 		LetDeclaration({identifier, initializer}) {
 			const insertBlock = builder.getInsertBlock()
@@ -124,6 +220,27 @@ function compileStmt(node: Ast.Stmt, topLevelFunc: llvm.Function) {
 		Assignment({name, value}) {
 			// TODO
 			throw new Error('Assignment not implemented')
+		},
+		While({condition, block}) {
+			const blockValue = compileExpr(block)
+
+			const insertBlock = builder.getInsertBlock()
+			assertExists(insertBlock, 'Insert block not found')
+			const parentFn = insertBlock.parent
+			assertExists(parentFn, `Insert block has no parent: ${insertBlock}`)
+
+			const loopBb = llvm.BasicBlock.create(context, 'loop', parentFn)
+			builder.createBr(loopBb);
+
+			builder.setInsertionPoint(loopBb);
+			compileExpr(block)
+
+			let conditionVal = compileExpr(condition)
+			conditionVal = builder.createFCmpONE(conditionVal, llvm.ConstantFP.get(context, 0), 'loopcond')
+
+			const afterBb = llvm.BasicBlock.create(context, 'afterloop', parentFn)
+			builder.createCondBr(conditionVal, loopBb, afterBb)
+			builder.setInsertionPoint(afterBb)
 		},
 	})
 
@@ -154,13 +271,13 @@ function setFunctionReturn(func: llvm.Function, returnValue: llvm.Value) {
 	builder.createRet(returnValue)
 }
 
+const topLevelFunc = genFunction('main')
 export const compile = (statements: Ast.Stmt[]): string => {
-	const topLevelFunc = genFunction('main')
 	for (const statement of statements) {
 		compileStmt(statement, topLevelFunc)
 	}
-	setFunctionReturn(topLevelFunc, llvm.ConstantFP.get(context, 42))
 
+	setFunctionReturn(topLevelFunc, llvm.ConstantFP.get(context, 42))
 	return module.print()
 }
 
@@ -170,4 +287,10 @@ const isTruthy = (arg: unknown) => {
 	}
 
 	return true
+}
+
+function assertExists<T>(val: T | undefined, msg?: string): asserts val is T {
+	if (typeof val === 'undefined') {
+		throw new Error(msg ?? `${val} is undefined`)
+	} 
 }

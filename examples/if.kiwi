@@ -1,0 +1,11 @@
+
+let x = 3;
+let y = 5;
+let a = if x > y {
+    print 1;
+    2;
+} else {
+    print 5;
+    6;
+};
+print a;

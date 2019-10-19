@@ -5,9 +5,10 @@
   "author": "Frank Paulo Filho <me@frankpf.com>",
   "license": "ISC",
   "dependencies": {
+    "fp-ts": "^2.1.0",
     "llvm-node": "https://github.com/frankpf/llvm-node",
     "source-map-support": "^0.5.13",
-    "typescript": "^3.7.0-dev.20190824"
+    "typescript": "^3.7.0-dev.20191018"
   },
   "devDependencies": {
     "@types/node": "^12.7.1",

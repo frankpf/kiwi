@@ -7,6 +7,8 @@ export type Expr =
 	| Expr.Binary
 	| Expr.Grouping
 	| Expr.LetAccess
+	| Expr.Block
+	| Expr.If
 export namespace Expr {
 	export class Literal {
 		readonly _tag = 'Literal'
@@ -36,6 +38,21 @@ export namespace Expr {
 		readonly _tag = 'LetAccess'
 		constructor(readonly identifier: Token) {}
 	}
+
+	export class Block {
+		readonly _tag = 'Block'
+		constructor(readonly statements: Stmt[]) {}
+	}
+
+	export class If {
+		readonly _tag = 'If'
+		constructor(
+			readonly condition: Expr,
+			readonly thenBlock: Block,
+			// We call it elseTail and not elseBlock because it could be an `else if { ... }`
+			readonly elseTail?: Block | If,
+		) {}
+	}
 }
 
 /*=================
@@ -46,6 +63,7 @@ export type Stmt =
 	| Stmt.Print
 	| Stmt.LetDeclaration
 	| Stmt.Assignment
+	| Stmt.While
 export namespace Stmt {
 	export class Expression {
 		static readonly uri = 'Expression'
@@ -69,6 +87,12 @@ export namespace Stmt {
 		static readonly uri = 'Assignment'
 		readonly _tag = Assignment.uri
 		constructor(readonly name: Token, readonly value: Expr) {}
+	}
+
+	export class While {
+		static readonly uri = 'While'
+		readonly _tag = While.uri
+		constructor(readonly condition: Expr, readonly block: Expr.Block) {}
 	}
 }
 

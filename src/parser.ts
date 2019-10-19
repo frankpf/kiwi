@@ -50,11 +50,22 @@ export class Parser {
 				return this.finishLetDeclarationStatement()
 			}
 
+			if (this.match(TokenType.While)) {
+				return this.finishWhileStatement()
+			}
+
 			return this.expressionStatement()
 		} catch (err) {
 			this.synchronize()
 			return null
 		}
+	}
+
+	private finishWhileStatement() {
+		const condition = this.expression()
+		this.consume(TokenType.OpenBrace, 'Expected "{" after while condition.')
+		const thenBlock = this.finishBlockExpression()
+		return new Ast.Stmt.While(condition, thenBlock)
 	}
 
 	private finishLetDeclarationStatement() {
@@ -126,6 +137,7 @@ export class Parser {
 
 		return this.primary()
 	}
+
 	private primary(): Ast.Expr {
 		// primary -> NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")" ;
 		if (this.match(TokenType.False)) {
@@ -150,12 +162,54 @@ export class Parser {
 
 		if (this.match(TokenType.OpenParen)) {
 			const expr = this.expression()
-			this.consume(TokenType.CloseParen, 'Expected ")" after expression.')
+			this.consume(TokenType.CloseParen, 'Expected ")" after expression')
 			return new Ast.Expr.Grouping(expr as Ast.Expr)
 		}
 
-		throw this.error(this.peek(), 'Expected expression.')
+		if (this.match(TokenType.If)) {
+			return this.finishIfExpression()
+		}
+
+		if (this.match(TokenType.OpenBrace)) {
+			return this.finishBlockExpression()
+		}
+
+		throw this.error(this.peek(), 'Expected expression')
 	}
+
+	private finishIfExpression(): Ast.Expr.If {
+		const condition = this.expression()
+		this.consume(TokenType.OpenBrace, 'Expected "{" after if condition')
+		const thenBlock = this.finishBlockExpression()
+		if (this.match(TokenType.Else)) {
+			if (this.match(TokenType.If)) {
+				// else if {
+				const elseIf = this.finishIfExpression()
+				return new Ast.Expr.If(condition, thenBlock, elseIf)
+			} else {
+				// else {}
+				this.consume(TokenType.OpenBrace, 'Expected "{" after else')
+				const elseBlock = this.finishBlockExpression()
+				return new Ast.Expr.If(condition, thenBlock, elseBlock)
+			}
+		}
+		return new Ast.Expr.If(condition, thenBlock)
+	}
+
+	private finishBlockExpression(): Ast.Expr.Block {
+		const statements = [] as Ast.Stmt[]
+		while (!this.isAtEnd()) {
+			if (this.match(TokenType.CloseBrace)) {
+				return new Ast.Expr.Block(statements)
+			}
+			const statement = this.statement()
+			if (statement) {
+				statements.push(statement)
+			}
+		}
+		throw new Error('wat')
+	}
+
 	private leftAssocBinOp(
 		operation: Lazy<Ast.Expr>,
 		types: TokenType[],
