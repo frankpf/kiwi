@@ -3,7 +3,17 @@
 Kiwi is a little programming language. It is statically typed and compiles to
 native code.
 
-# Getting started
+## TODO
+
+- [ ] Mutable variables
+- [ ] Add functions
+- [ ] Basic type system
+- [ ] Refactor LLVM backend
+- [ ] Add arrays
+- [ ] Add strings
+- [ ] Use Pratt parsing for parsing expressions
+
+## Getting started
 
 To build Kiwi, you need the LLVM 4.0 toolchain installed.
 
