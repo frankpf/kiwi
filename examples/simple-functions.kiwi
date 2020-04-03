@@ -1,5 +1,5 @@
 let x = 1;
 
-fun add(x: Double, y: Double) {
+fun add(x, y) {
 	return x + y;
 }

@@ -9,16 +9,10 @@
 		"baseUrl": ".",
 		"emitDecoratorMetadata": true,
 		"experimentalDecorators": true,
-		"lib": ["es5", "es6"],
+		"lib": ["es5", "es6", "es7", "es2018", "es2019"],
 		"paths": {
-			"*": [
-				"node_modules/*",
-				"src/_vendor/*"
-			]
+			"*": ["node_modules/*", "src/_vendor/*"]
 		}
 	},
-	"include": [
-		"src/**/*",
-		"tests/**/*"
-	]
+	"include": ["src/**/*", "tests/**/*"]
 }

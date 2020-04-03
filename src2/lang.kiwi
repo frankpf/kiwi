@@ -1,0 +1,17 @@
+
+
++ ruby-inspired
+ (the goal is to learn lessons that could be applied to optimizing ruby)
+
++ classes
+  inheritance
+
++ some way to do mixins
+
++ send, eval, .instance_eval, etc
+
+different from ruby
+- variable declaration vs usage
+- imports
+- anon functions vs blocks
+

@@ -1,0 +1,23 @@
+$ stdout: ab
+"a" + "b";
+---
+$ stdout: bbaaa
+"bb" + "aaa";
+---
+$ stdout: true
+"bb" == "bb";
+---
+$ stdout: false
+"bb" == "bbb";
+---
+$ stdout: true
+("bb" + "aa") == "bbaa";
+---
+$ stdout: true
+"bbaa" == ("bb" + "aa");
+---
+$ stdout: false
+"bbaa" == ("bb" + "aaa");
+---
+$ stdout: false
+"bbaaa" == ("bb" + "aa");

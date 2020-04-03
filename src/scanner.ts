@@ -84,31 +84,19 @@ export class Scanner {
 				this.addToken(TokenType.Star)
 				break
 			case '!':
-				this.addToken(
-					this.match('=') ? TokenType.BangEqual : TokenType.Bang,
-				)
+				this.addToken(this.match('=') ? TokenType.BangEqual : TokenType.Bang)
 				break
 			case '=':
-				this.addToken(
-					this.match('=') ? TokenType.EqualEqual : TokenType.Equal,
-				)
+				this.addToken(this.match('=') ? TokenType.EqualEqual : TokenType.Equal)
 				break
 			case '<':
-				this.addToken(
-					this.match('=') ? TokenType.LessEqual : TokenType.Less,
-				)
+				this.addToken(this.match('=') ? TokenType.LessEqual : TokenType.Less)
 				break
 			case '>':
-				this.addToken(
-					this.match('=')
-						? TokenType.GreaterEqual
-						: TokenType.Greater,
-				)
+				this.addToken(this.match('=') ? TokenType.GreaterEqual : TokenType.Greater)
 				break
 			case '&':
-				this.addToken(
-					this.match('&') ? TokenType.And : TokenType.BitAnd,
-				)
+				this.addToken(this.match('&') ? TokenType.And : TokenType.BitAnd)
 				break
 			case '|':
 				this.addToken(this.match('|') ? TokenType.Or : TokenType.BitOr)
@@ -208,7 +196,11 @@ export class Scanner {
 			.filter(ch => ch != '_')
 			.join('')
 
-		this.addToken(TokenType.NumberLit, Number(num))
+		if (num.includes('.')) {
+			this.addToken(TokenType.DoubleLit, Number(num))
+		} else {
+			this.addToken(TokenType.IntegerLit, Number(num))
+		}
 	}
 
 	private string() {

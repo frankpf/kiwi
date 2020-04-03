@@ -1,5 +1,5 @@
 module.exports = {
-	printWidth: 80,
+	printWidth: 120,
 	tabWidth: 4,
 	useTabs: true,
 	semi: false,
@@ -9,7 +9,7 @@ module.exports = {
 	arrowParens: 'avoid',
 	endOfLine: 'lf',
 
-	/* idk what this is so I left it as default */
+	/* misc */
 	quoteProps: 'as-needed',
 	proseWrap: 'preserve',
 	htmlWhitespaceSensitivity: 'css',

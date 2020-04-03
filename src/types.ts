@@ -1,1 +1,1 @@
-export type KiwiType = any
+export type KiwiType = number | null | true | false | string

@@ -1,18 +1,12 @@
 import {Token} from './token'
-import {matchAll} from './match'
+import {KiwiType} from './types'
 
-export type Expr =
-	| Expr.Literal
-	| Expr.Unary
-	| Expr.Binary
-	| Expr.Grouping
-	| Expr.LetAccess
-	| Expr.Block
-	| Expr.If
+export type Expr = Expr.Literal | Expr.Unary | Expr.Binary | Expr.Grouping | Expr.LetAccess | Expr.Block | Expr.If
+
 export namespace Expr {
 	export class Literal {
 		readonly _tag = 'Literal'
-		constructor(readonly value: any) {}
+		constructor(readonly value: KiwiType, readonly startToken: Token) {}
 	}
 
 	export class Unary {
@@ -22,11 +16,7 @@ export namespace Expr {
 
 	export class Binary {
 		readonly _tag = 'Binary'
-		constructor(
-			readonly left: Expr,
-			readonly operator: Token,
-			readonly right: Expr,
-		) {}
+		constructor(readonly left: Expr, readonly operator: Token, readonly right: Expr) {}
 	}
 
 	export class Grouping {
@@ -58,12 +48,8 @@ export namespace Expr {
 /*=================
  Statements
  ==================*/
-export type Stmt =
-	| Stmt.Expression
-	| Stmt.Print
-	| Stmt.LetDeclaration
-	| Stmt.Assignment
-	| Stmt.While
+export type Stmt = Stmt.Expression | Stmt.Print | Stmt.LetDeclaration | Stmt.Assignment | Stmt.While
+
 export namespace Stmt {
 	export class Expression {
 		static readonly uri = 'Expression'

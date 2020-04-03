@@ -6,18 +6,7 @@ import {Lazy} from './utils'
 class ParseError extends Error {}
 
 export class Parser {
-	private readonly binOpPrecedences: {[op: string]: number} = {
-		'<': 10,
-		'+': 20,
-		'-': 20,
-		'*': 40,
-		'/': 40,
-	}
-
-	private constructor(
-		private readonly tokens: Array<Token>,
-		private current = 0,
-	) {}
+	private constructor(private readonly tokens: Array<Token>, private current = 0) {}
 
 	static parseTokens(tokens: Token[]): (Ast.Stmt | null)[] | null {
 		const parser = new Parser(tokens)
@@ -69,10 +58,7 @@ export class Parser {
 	}
 
 	private finishLetDeclarationStatement() {
-		const identifier = this.consume(
-			TokenType.Identifier,
-			'Expected variable name',
-		)
+		const identifier = this.consume(TokenType.Identifier, 'Expected variable name')
 		let initializer: Ast.Expr | undefined = undefined
 		if (this.match(TokenType.Equal)) {
 			initializer = this.expression()
@@ -107,12 +93,7 @@ export class Parser {
 	private comparison(): Ast.Expr {
 		// comparison -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
 		const op = this.addition.bind(this)
-		const types = [
-			TokenType.Greater,
-			TokenType.GreaterEqual,
-			TokenType.Less,
-			TokenType.LessEqual,
-		]
+		const types = [TokenType.Greater, TokenType.GreaterEqual, TokenType.Less, TokenType.LessEqual]
 		return this.leftAssocBinOp(op, types)
 	}
 	private addition(): Ast.Expr {
@@ -141,19 +122,19 @@ export class Parser {
 	private primary(): Ast.Expr {
 		// primary -> NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")" ;
 		if (this.match(TokenType.False)) {
-			return new Ast.Expr.Literal(false)
+			return new Ast.Expr.Literal(false, this.previous())
 		}
 
 		if (this.match(TokenType.True)) {
-			return new Ast.Expr.Literal(true)
+			return new Ast.Expr.Literal(true, this.previous())
 		}
 
 		if (this.match(TokenType.Nil)) {
-			return new Ast.Expr.Literal(null)
+			return new Ast.Expr.Literal(null, this.previous())
 		}
 
-		if (this.match(TokenType.NumberLit, TokenType.StringLit)) {
-			return new Ast.Expr.Literal(this.previous().literal)
+		if (this.match(TokenType.IntegerLit, TokenType.DoubleLit, TokenType.StringLit)) {
+			return new Ast.Expr.Literal(this.previous().literal, this.previous())
 		}
 
 		if (this.match(TokenType.Identifier)) {
@@ -210,10 +191,7 @@ export class Parser {
 		throw new Error('wat')
 	}
 
-	private leftAssocBinOp(
-		operation: Lazy<Ast.Expr>,
-		types: TokenType[],
-	): Ast.Expr {
+	private leftAssocBinOp(operation: Lazy<Ast.Expr>, types: TokenType[]): Ast.Expr {
 		let expr = operation()
 		while (this.match(...types)) {
 			const operator = this.previous()
