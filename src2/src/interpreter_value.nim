@@ -1,6 +1,6 @@
 {.experimental: "codeReordering".}
-type ObjTag* {.pure.} = enum String
 import strformat
+type ObjTag* {.pure.} = enum String
 
 type Obj* = object
     tag*: ObjTag
@@ -50,29 +50,39 @@ proc downcast*[T](objPtr: ptr Obj): T =
 proc upcast*[T](objptr: ptr T): Obj =
   cast[ptr Obj](objPtr)[]
 
+proc createObj(tag: ObjTag): Obj =
+  Obj(tag: tag)
+
 proc createObjString*(s: string): ptr ObjString =
     var data = cast[ptr ObjString](alloc0(sizeof ObjString))
-    data.obj = Obj(tag: ObjTag.String)
+    data.obj = createObj(ObjTag.String)
     data.length = s.len.uint64
-    data.chars = cast[ptr uint8](s.cstring)
+
+    # We need to make our own copy of the underlying characters
+    # so that nim's GC freeing `s` won't affect the VM string.
+    let chars = cast[ptr uint8](alloc0(data.length))
+    copyMem(chars, unsafeAddr s[0], data.length)
+
+    data.chars = chars
 
     data
 
 
 proc createObjString*(chars: ptr uint8, length: uint64): ptr ObjString =
     var data = cast[ptr ObjString](alloc0(sizeof ObjString))
-    data.obj = Obj(tag: ObjTag.String)
+    data.obj = createObj(ObjTag.String)
     data.length = length
     data.chars = chars
 
     data
 
-proc printObjString*(str: ObjString) =
+proc printObjString*(str: ObjString): string =
+    var result = ""
     let chars = str.chars
     for i in 0..<str.length:
         let ascii = cast[ptr uint8](cast[uint64](chars) + i)
-        stdout.write(chr(ascii[]))
-    stdout.write("\n")
+        result.add(chr(ascii[]))
+    result
 
 func valuesEqual*(a: Value, b: Value): bool = 
     if a.kind != b.kind: return false
@@ -91,3 +101,4 @@ func valuesEqual*(a: Value, b: Value): bool =
         let strB = downcast[Objstring](b.obj)
         return strA.length == strB.length and
             equalMem(strA.chars, strB.chars, strA.length)
+

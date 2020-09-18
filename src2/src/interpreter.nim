@@ -25,8 +25,9 @@ type Interpreter = object
     ic: int
     stack: array[STACK_MAX, Value]
     stackTop: int
+    heapObjects: seq[ptr Obj]
 
-proc newInterpreter*(bytecode: Bytecode): Interpreter = Interpreter(bytecode: bytecode, ic: 0, stackTop: 0)
+proc newInterpreter*(bytecode: Bytecode): Interpreter = Interpreter(bytecode: bytecode, ic: 0, stackTop: 0, heapObjects: newSeq[ptr Obj]())
 
 proc push(self: var Interpreter, value: Value): void =
     self.stack[self.stackTop] = value
@@ -110,6 +111,7 @@ proc interpret*(self: var Interpreter): void =
             printKiwiValue(self.pop())
             return
         self.ic += 1
+        echoErr fmt"Current ic: {self.ic}"
         echoErr fmt"Current stack: {self.stack[0..<self.stackTop]}"
 
 type Opcode {.pure.} = enum
@@ -228,11 +230,15 @@ proc printKiwiValue(value: Value): void =
     of Object:
         if value.isStringVal:
             let obj = downcast[ObjString](value.obj)
-            printObjString(obj)
+            echo printObjString(obj)
 
 proc printf(formatstr: cstring) {.importc: "printf", varargs,
                                   header: "<stdio.h>".}
 
+
+# FIXME: we're mixing concerns. the binaryOp macro has knowledge
+# that a string operation has been done, although it doesn't deal with
+# that at all.
 macro binaryOp(self: var Interpreter, op: untyped): untyped =
     let opStr = op[0].strVal
     if not @["+", "-", "*", "/"].contains(opStr):
@@ -304,18 +310,51 @@ proc concatStrings(self: var Interpreter): void =
     copyMem(bOffset, bStr.chars, bStr.length)
 
     let result = takeString(chars, length)
-    self.push(createStringVal(result))
+    self.push(self.allocHeap(createStringVal(result)))
+
+macro allocHeap(self: var Interpreter, procCall: untyped): untyped =
+  let result = newStmtList()
+  result.add quote do:
+    let tmpVal = `procCall`
+    self.heapObjects.add(tmpVal.obj)
+    tmpVal
+
+  result
 
 proc allocate[T](size: int, count: uint64): ptr T =
     # FIXME: consider using cast to uint64 instead of proc call or defining an overload for `*`
     reallocate[T](nil, 0, size.uint64 * count)
 
 proc reallocate[T](previous: ptr T, oldSize: uint64, newSize: uint64): ptr T =
-    if (newSize == 0):
+    if newSize == 0:
         dealloc(previous)
         return nil
 
     return cast[ptr T](realloc(previous, newSize))
+
+
+proc cleanup(obj: ptr Obj): void =
+    case obj.tag:
+    of ObjTag.String:
+      let str = downcast[ObjString](obj)
+      echoErr fmt"==Cleaning up=="
+      echoErr printObjString(str)
+      echoErr fmt"==Done=="
+      #dealloc(str.chars)
+      #dealloc(obj)
+      discard reallocate(str.chars, uint64(sizeof(uint8).uint64 * (str.length + 1)), 0.uint64)
+      discard reallocate(obj, sizeof(ObjString).uint64, 0)
+
+proc cleanup*(self: var Interpreter): void =
+  for obj in self.heapObjects:
+    obj.cleanup
+
+  for val in self.bytecode.constants:
+    if val.kind == ValueTag.Object:
+      val.obj.cleanup
+
+  return
+
 
 
 func peek(self: Interpreter, dist: Natural): Value =
