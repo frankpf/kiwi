@@ -87,6 +87,21 @@ proc interpret*(self: var Interpreter): void =
             of Opcode.Div:
                 self.binaryOp(`/`)
             else:
+              discard
+        of Opcode.Ge, Opcode.Geq, Opcode.Le, Opcode.Leq:
+            # TODO: Figure out if there's a way to let nimc know
+            # that Opcode's type here is narrowed to {Ge,Geq,Le,Leq}
+            # so that I can remove the else: discard line.
+            case opcode:
+            of Opcode.Ge:
+                self.binaryCmpOp(`>`)
+            of Opcode.Geq:
+                self.binaryCmpOp(`>=`)
+            of Opcode.Le:
+                self.binaryCmpOp(`<`)
+            of Opcode.Leq:
+                self.binaryCmpOp(`<=`)
+            else:
                 discard
         of Opcode.Eql:
             let (b, a) = self.pop2()
@@ -108,6 +123,7 @@ type Opcode {.pure.} = enum
     # Binary operations
     Add, Sub, Mul, Div,
     Eql,
+    Ge, Geq, Le, Leq,
     # Misc
     Return,
 
@@ -151,6 +167,10 @@ const textToOpcode = {
     "div": Opcode.Div,
     "mul": Opcode.Mul,
     "eql": Opcode.Eql,
+    "ge": Opcode.Ge,
+    "geq": Opcode.Geq,
+    "le": Opcode.Le,
+    "leq": Opcode.Leq,
 }.toTable
 
 type BytecodeParseError = object of Exception
@@ -234,6 +254,27 @@ macro binaryOp(self: var Interpreter, op: untyped): untyped =
         elif a.kind == ValueTag.Double and b.kind == ValueTag.Double:
             self.push(createDouble(`op`(a.doubleVal, b.doubleVal)))
         else: 
+            self.runtimeError(`errorMsg`)
+    result
+
+
+macro binaryCmpOp(self: var Interpreter, op: untyped): untyped =
+    let opStr = op[0].strVal
+    if not @[">", ">=", "<", "<="].contains(opStr):
+        error(fmt"binaryOp instantiated with invalid operator: {opStr}")
+    let result = newStmtList()
+    let errorMsg = "Operands to " & opStr & " must be two doubles or integers"
+    result.add quote do:
+        let (b, a) = self.pop2()
+        if a.kind == ValueTag.Int and b.kind == ValueTag.Int:
+            self.push(createBool(`op`(a.intVal, b.intVal)))
+        elif a.kind == ValueTag.Int and b.kind == ValueTag.Double:
+            self.push(createBool(`op`(float64(a.intVal), b.doubleVal)))
+        elif a.kind == ValueTag.Double and b.kind == ValueTag.Int:
+            self.push(createBool(`op`(a.doubleVal, float64(b.intVal))))
+        elif a.kind == ValueTag.Double and b.kind == ValueTag.Double:
+            self.push(createBool(`op`(a.doubleVal, b.doubleVal)))
+        else:
             self.runtimeError(`errorMsg`)
     result
 
