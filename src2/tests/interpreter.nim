@@ -8,6 +8,7 @@ from strutils import split, find, strip, repeat
 from sugar import `->`
 from unpack import `<-`
 from terminal as t import nil
+from base64 as base64 import nil
 
 type TestCase = object
     path {.requiresInit.}: string
@@ -68,11 +69,14 @@ proc run(): void =
             t.styledWrite(stdout, t.fgRed, "got following bytecode: \n")
             t.styledWrite(stdout, t.bgWhite, t.fgBlack, bytecodeText.stdout)
             t.styledWrite(stdout, t.fgRed, "\nTest fragment defined in: {testCase.path} ({testCase.fileIndex})\n".fmt)
+            t.styledWrite(stdout, t.fgBlue, "\nTo reproduce this failure, use the following command:")
+            let reproCmd = getReproCmd(testCase)
+            t.styledWrite(stdout, t.bgRed, t.fgWhite, "\n{reproCmd}\n".fmt)
         t.styledWrite(stdout, t.fgBlue, "⎯".repeat(50) & "\n")
     var totalMs = (getTime() - startTime).inMilliseconds
     t.styledWrite(stdout, t.fgGreen, t.styleItalic, "{successes} tests passed\n".fmt)
     t.styledWrite(stdout, t.fgRed, t.styleItalic, "{failures} tests failed\n".fmt)
-    t.styledWrite(stdout, t.fgWhite, t.styleBlink, "Took {totalMs}ms\n".fmt)
+    t.styledWrite(stdout, t.fgWhite, "Took {totalMs}ms\n".fmt)
 
 
 type ExecCmdResult = tuple[stdout: string, stderr: string]
@@ -80,8 +84,13 @@ proc compileBytecode(sourceCode: string): ExecCmdResult =
    runCommandWithFile(
        sourceCode,
        "..",
-       proc (f: string): string = fmt"node dist/src/index.js {f}",
+       proc (f: string): string = fmt"node dist/src/index.js --file {f}",
    )
+
+proc getReproCmd(testCase: TestCase): string =
+  let encoded = base64.encode(testCase.sourceCode)
+  return fmt"echo '{encoded}' | base64 -d | node ../dist/src/index.js --stdin | ./kiwi"
+
 
 proc interpret(bytecode: string): ExecCmdResult =
    runCommandWithFile(
