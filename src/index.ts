@@ -7,13 +7,27 @@ import {Parser} from './parser'
 import * as Ast from './ast'
 import {fromAst} from './backends/bytecode/instruction'
 
+const VALID_MODES = ['--stdin', '--file']
+
 export async function main(args: string[]) {
-	const filename = args[0]
-	if (!filename) {
-		console.log('Please specify <filename>')
+	const mode = args[0]
+
+	if (!VALID_MODES.includes(mode)) {
+		console.log(`Invalid mode. Please specify one of ${VALID_MODES}`)
 		process.exit(1)
 	}
-	const fileContent = fs.readFileSync(filename, 'utf8')
+
+	let fileContent: string
+	if (mode === '--stdin') {
+		fileContent = await readStdin()
+	} else {
+		const filename = args[1]
+		if (!filename) {
+			console.log('Please specify <filename>')
+			process.exit(1)
+		}
+		fileContent = fs.readFileSync(filename, 'utf8')
+	}
 
 	const tokens = Scanner.scanText(fileContent)
 	const ast = Parser.parseTokens(tokens)
@@ -25,4 +39,23 @@ export async function main(args: string[]) {
 	process.stdout.write(bytecode)
 }
 
+function readStdin(): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let finalString = ''
+		process.stdin.on('data', (data: Buffer) => {
+			const text = data.toString('utf8')
+			finalString += text
+		})
+
+		process.stdin.on('close', () => {
+			resolve(finalString)
+		})
+	})
+}
+
 main(process.argv.slice(2))
+
+
+
+
+
