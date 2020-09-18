@@ -71,6 +71,9 @@ proc interpret*(self: var Interpreter): void =
             else:
                 discard
         of Opcode.Add, Opcode.Sub, Opcode.Mul, Opcode.Div:
+            # TODO: Figure out if there's a way to let nimc know
+            # that Opcode's type here is narrowed to {Add,Sub,Mul,Div}
+            # so that I can remove the else: discard line.
             case opcode:
             of Opcode.Add:
                 if self.peek(0).isStringVal and self.peek(1).isStringVal:
