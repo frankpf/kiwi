@@ -17,6 +17,10 @@ export type Instruction =
 	| Instruction.Negate
 	| Instruction.Return
 	| Instruction.Equal
+	| Instruction.GreaterEqual
+	| Instruction.LessEqual
+	| Instruction.Greater
+	| Instruction.Less
 
 export namespace Instruction {
 	interface Instr<T> {
@@ -71,6 +75,18 @@ export namespace Instruction {
 
 	export const Equal = SimpleInstr('eql')
 	export type Equal = InstanceType<typeof Equal>
+
+	export const Greater = SimpleInstr('ge')
+	export type Greater = InstanceType<typeof Greater>
+
+	export const GreaterEqual = SimpleInstr('geq')
+	export type GreaterEqual = InstanceType<typeof GreaterEqual>
+
+	export const Less = SimpleInstr('le')
+	export type Less = InstanceType<typeof Less>
+
+	export const LessEqual = SimpleInstr('leq')
+	export type LessEqual = InstanceType<typeof LessEqual>
 
 	function SimpleInstr<T extends string>(instr: T) {
 		const classRef: { new(line: number): Instr<T> } = class implements Instr<T> {
@@ -141,6 +157,18 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 						break
 					case TokenType.EqualEqual:
 						opInstr = new Instruction.Equal(NOLINE)
+						break
+					case TokenType.Greater:
+						opInstr = new Instruction.Greater(NOLINE)
+						break
+					case TokenType.GreaterEqual:
+						opInstr = new Instruction.GreaterEqual(NOLINE)
+						break
+					case TokenType.Less:
+						opInstr = new Instruction.Less(NOLINE)
+						break
+					case TokenType.LessEqual:
+						opInstr = new Instruction.LessEqual(NOLINE)
 						break
 					default:
 						throw new Error(`Binary operator ${operator} not supported`)
