@@ -1,0 +1,25 @@
+
+* Kiwi 🥝
+
+Kiwi is a little programming language. It is dynamically typed and interpreted.
+
+[[https://kiwi.frankpf.com][Try it on the Kiwi playground!]]
+
+** Status
+  
+The Kiwi VM supports expressions, basic types (~Boolean~, ~String~, ~Double~ and
+~Integer~) and local variables.
+  
+I've worked through some iterations of Kiwi, and they're in different branches:
+
+- [[https://github.com/frankpf/kiwi/tree/main][main]]: Version currently being worked on. Dynamically typed, interpreted and
+  meant to eventually have a JIT. The VM is written in Nim and the
+  parser/scanner are written in TypeScript.
+  
+- [[https://github.com/frankpf/kiwi/tree/llvm][llvm]]: Version I worked in the past and am still experimenting with.
+  Statically typed and compiled to native code with LLVM. It is far from
+  finished; right now only floating point types are working (writing a type
+  system is hard!) and there are expressions, if-else conditions and while
+  loops. 
+
+  
