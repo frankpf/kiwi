@@ -26,6 +26,7 @@ export type Instruction =
 	| Instruction.MakeConstant
 	| Instruction.DefineGlobal
 	| Instruction.GetGlobal
+	| Instruction.SetGlobal
 
 export namespace Instruction {
 	interface Instr<T> {
@@ -45,6 +46,12 @@ export namespace Instruction {
 		constructor(readonly constant: string) {}
 
 		encode(buf: InstructionBuffer) {
+			const constant = MakeConstant.globalConstants[this.constant]
+			if (constant !== undefined) {
+				this._index = constant.index
+				return
+			}
+
 			const prefix = `s${this.constant.length}`
 			const index = buf.constants.push(`${prefix} ${this.constant}`) - 1
 			this._index = index
@@ -60,6 +67,16 @@ export namespace Instruction {
 				throw new Error('Tried to access constant with no index')
 			}
 			return this._index
+		}
+	}
+
+	export class SetGlobal implements Instr<'SetGlobal'> {
+		readonly _tag = 'SetGlobal'
+		constructor(readonly line: number, readonly constantString: string) {}
+
+		encode(buf: InstructionBuffer) {
+			buf.instructions.push(`set_global ${MakeConstant.for(this.constantString).index}`)
+			buf.lineNumbers.push(this.line)
 		}
 	}
 
@@ -251,7 +268,8 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 				return [...rightInstrs, opInstr]
 			},
 			LetAccess({identifier}) {
-				return [new Instruction.GetGlobal(NOLINE, identifier.lexeme)]
+				const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme)
+				return [mkIdentifier, new Instruction.GetGlobal(NOLINE, identifier.lexeme)]
 			},
 			If({condition, thenBlock, elseTail}) {
 				return _()
@@ -267,8 +285,9 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 			return [...exprMatcher(expression), new Instruction.Pop(NOLINE)]
 		},
 		Assignment({name, value}) {
-			throw 'Assignment not supported!'
-			return _()
+			// FIXME: I think maybe assignment shouldn't try to generate a MakeConstant, only SetGlobal and GetGlobal should.
+			const mkIdentifier = new Instruction.MakeConstant(name.lexeme)
+			return [...exprMatcher(value), mkIdentifier, new Instruction.SetGlobal(NOLINE, name.lexeme)]
 		},
 		While({condition, block}) {
 			throw 'While not supported'
