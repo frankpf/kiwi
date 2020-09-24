@@ -1,5 +1,6 @@
 {.experimental: "codeReordering".}
 from os import walkFiles, getCurrentDir, removeFile
+from re import re, match, reIgnoreCase
 from strformat import fmt
 from times import getTime, `-`, inMilliseconds
 from osproc import startProcess, poUsePath, poEvalCommand, errorStream, outputStream
@@ -17,6 +18,7 @@ type TestCase = object
     globalIndex {.requiresInit.}: Natural
     expectedStdout: string
     expectedStderr: string
+    expectedRegex: bool
 
 proc run(): void =
     var testCases = newSeq[TestCase]()
@@ -28,12 +30,15 @@ proc run(): void =
        for fragment in fragments:
             let (metadata, endIndex) = fragment.between("$ ", "\n")
             let sections = metadata.split("; ")
-            var testCase = TestCase(path: file, globalIndex: globalIndex, fileIndex: fileIndex, sourceCode: fragment[endIndex+1..<fragment.len])
+            var testCase = TestCase(path: file, globalIndex: globalIndex, fileIndex: fileIndex, sourceCode: fragment[endIndex+1..<fragment.len], expectedRegex: false)
             for section in sections:
                 [k, v] <- section.split(": ")
                 case k:
                 of "stdout": testCase.expectedStdout = v
                 of "stderr": testCase.expectedStderr = v
+                of "stderr-regex":
+                    testCase.expectedStderr = v
+                    testCase.expectedRegex = true
                 else: raise newException(Exception, fmt"unknown key {k}") 
             testCases.add(testCase)
             fileIndex += 1
@@ -51,18 +56,35 @@ proc run(): void =
             t.styledWrite(stdout, t.fgRed, "Got stderr from bytecode compiler:\n")
             t.styledWrite(stdout, t.bgWhite, t.fgBlack, bytecodeText.stderr)
             t.styledWrite(stdout, t.fgRed, "\nTest fragment defined in: {testCase.path} ({testCase.fileIndex})\n".fmt)
+            failures += 1
             continue
         var startInterpret = getTime()
         let (stdoutText, stderrText) = interpret(bytecodeText.stdout)
         var interpretMs = (getTime() - startInterpret).inMilliseconds
-        let testPassed = stdoutText.strip == testCase.expectedStdout
+        var stream = ""
+        let testPassed = if testCase.expectedStdout.len > 0:
+          stream = "stdout"
+          stdoutText.strip == testCase.expectedStdout
+        else:
+          stream = "stderr"
+          if testCase.expectedRegex:
+            stderrText.strip.match(re(testCase.expectedStderr, {reIgnoreCase}))
+          else:
+            stderrText.strip == testCase.expectedStderr
         if testPassed:
             successes += 1
             t.styledWrite(stdout, t.fgGreen, "Test #{testCase.globalIndex} passed [took {interpretMs}ms interpreting, {bytecodeMs}ms generating bytecode]\n".fmt)
         else:
             failures += 1
             t.styledWrite(stdout, t.fgRed, "Test #{testCase.globalIndex} failed [took {interpretMs}ms interpreting, {bytecodeMs}ms generating bytecode]\n".fmt)
-            t.styledWrite(stdout, t.fgRed, "Expected stdout to eq: {testCase.expectedStdout.strip}\n".fmt)
+            let expectEq = if stream == "stdout":
+                testCase.expectedStdout
+            else:
+                testCase.expectedStderr
+            echo fmt"STDERRLEN: {testCase.expectedStderr.len}"
+            echo fmt"STDERR2LEN: {stderrText.strip.len}"
+
+            t.styledWrite(stdout, t.fgRed, "Expected {stream} to eq(regex={testCase.expectedRegex}): {expectEq}\n".fmt)
             t.styledWrite(stdout, t.fgRed, "              but got: {stdoutText.strip}\n".fmt)
             if stderrText.strip.len > 0:
                  t.styledWrite(stdout, t.fgRed, "     also got stderr: {stderrText.strip}\n".fmt)
