@@ -5,6 +5,13 @@ Kiwi is a little programming language. It is dynamically typed and interpreted.
 
 [[https://kiwi.frankpf.com][Try it on the Kiwi playground!]]
 
+```typescript
+let a = "Hello";
+let b = "World";
+let msg = a + " " + b + "!";
+print msg;
+```
+
 ** Status
   
 The Kiwi VM supports expressions, basic types (~Boolean~, ~String~, ~Double~ and
