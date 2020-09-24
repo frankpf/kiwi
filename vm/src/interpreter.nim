@@ -127,7 +127,15 @@ proc interpret*(self: var Interpreter): void =
               self.push(value)
               self.ic += 1
             except KeyError:
-                self.runtimeError(fmt"Undefined global variable {printObjString(name)}")
+                self.runtimeError(fmt"Access to undefined global variable '{printObjString(name)}'")
+        of Opcode.SetGlobal:
+            let offset = instructions[self.ic+1]
+            let name = downcast[ObjString](constants[offset].obj)
+            if not self.globals.hasKey(name):
+                self.runtimeError(fmt"Assignment to undefined global variable '{printObjString(name)}'")
+            self.globals[name] = self.peek(0)
+            discard self.pop()
+            self.ic += 1
         of Opcode.Return:
             for s, v in self.globals.pairs:
               echoErr "GLOBAL INFO (K,V)-->"
@@ -154,7 +162,7 @@ type Opcode {.pure.} = enum
     # Misc
     Return,
     # Globals
-    DefineGlobal, GetGlobal,
+    DefineGlobal, GetGlobal, SetGlobal,
     # Statements
     Print,
     Pop,
