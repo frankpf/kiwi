@@ -1,6 +1,7 @@
 {.experimental: "codeReordering".}
 import strformat
 type ObjTag* {.pure.} = enum String
+from hashes import Hash, hashData
 
 type Obj* = object
     tag*: ObjTag
@@ -9,6 +10,9 @@ type ObjString* = object
     obj*: Obj
     length*: uint64
     chars*: ptr uint8
+
+proc hash*(s: ObjString): Hash =
+    hashData(s.chars, s.length.int)
 
 proc takeString*(chars: ptr uint8, length: uint64): ptr ObjString =
     createObjString(chars, length)

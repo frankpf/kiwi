@@ -6,6 +6,7 @@ import {TokenType} from '../../token'
 const NOLINE = 0
 
 export type Instruction =
+	| Instruction.Pop
 	| Instruction.LoadConstant
 	| Instruction.LoadNil
 	| Instruction.LoadTrue
@@ -22,12 +23,64 @@ export type Instruction =
 	| Instruction.Greater
 	| Instruction.Less
 	| Instruction.Print
+	| Instruction.MakeConstant
+	| Instruction.DefineGlobal
+	| Instruction.GetGlobal
 
 export namespace Instruction {
 	interface Instr<T> {
 		readonly _tag: T
 		readonly line: number
 		encode(buf: InstructionBuffer): void
+	}
+
+	// FIXME: oof we probably need to refactor the whole Instruction architecture, I don't think this makes sense
+	// MakeConstant is not a real instruction, we just use it to create constants without a corresponding instruction
+	export class MakeConstant implements Instr<'MakeConstant'> {
+		readonly _tag = 'MakeConstant'
+		line!: number
+		private _index: number | undefined
+		static globalConstants = {} as any
+
+		constructor(readonly constant: string) {}
+
+		encode(buf: InstructionBuffer) {
+			const prefix = `s${this.constant.length}`
+			const index = buf.constants.push(`${prefix} ${this.constant}`) - 1
+			this._index = index
+			MakeConstant.globalConstants[this.constant] = this
+		}
+
+		static for(constant: string): MakeConstant {
+			return MakeConstant.globalConstants[constant]
+		}
+
+		get index() {
+			if (this._index === undefined) {
+				throw new Error('Tried to access constant with no index')
+			}
+			return this._index
+		}
+	}
+
+	export class GetGlobal implements Instr<'GetGlobal'> {
+		readonly _tag = 'GetGlobal'
+		constructor(readonly line: number, readonly constantString: string) {}
+
+		encode(buf: InstructionBuffer) {
+			buf.instructions.push(`get_global ${MakeConstant.for(this.constantString).index}`)
+			buf.lineNumbers.push(this.line)
+		}
+	}
+
+	export class DefineGlobal implements Instr<'DefineGlobal'> {
+		readonly _tag = 'DefineGlobal'
+		constructor(readonly line: number, readonly constant: MakeConstant) {}
+
+		encode(buf: InstructionBuffer): void {
+			buf.instructions.push(`define_global ${this.constant.index}`)
+			buf.lineNumbers.push(this.line)
+		}
 	}
 
 	export class LoadConstant implements Instr<'LoadConstant'> {
@@ -49,6 +102,9 @@ export namespace Instruction {
 
 	export const Print = SimpleInstr('print')
 	export type Print = InstanceType<typeof Print>
+
+	export const Pop = SimpleInstr('pop')
+	export type Pop = InstanceType<typeof Pop>
 
 	export const Return = SimpleInstr('return')
 	export type Return = InstanceType<typeof Return>
@@ -195,7 +251,7 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 				return [...rightInstrs, opInstr]
 			},
 			LetAccess({identifier}) {
-				return _()
+				return [new Instruction.GetGlobal(NOLINE, identifier.lexeme)]
 			},
 			If({condition, thenBlock, elseTail}) {
 				return _()
@@ -208,7 +264,7 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 	}
 	const stmtMatcher = matchAll<Ast.Stmt, Instruction[]>({
 		Expression({expression}) {
-			return exprMatcher(expression)
+			return [...exprMatcher(expression), new Instruction.Pop(NOLINE)]
 		},
 		Assignment({name, value}) {
 			throw 'Assignment not supported!'
@@ -222,8 +278,13 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 			return [...exprMatcher(expression), new Instruction.Print(NOLINE)]
 		},
 		LetDeclaration({identifier, initializer}) {
-			throw 'LetDecl not supported'
-			return _()
+			const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme)
+			const initializerInstrs = initializer !== undefined
+				? exprMatcher(initializer)
+				: [new Instruction.LoadNil(NOLINE)]
+
+			return [mkIdentifier, ...initializerInstrs, new Instruction.DefineGlobal(NOLINE, mkIdentifier)]
+
 		},
 	})
 	return ast.flatMap(stmtMatcher).concat([new Instruction.Return(NOLINE)])

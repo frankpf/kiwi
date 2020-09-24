@@ -3,10 +3,11 @@ from tables import toTable, `[]`, hasKey
 from types import KiwiType
 from sequtils import map, mapIt
 from strformat import fmt
+from tables import Table, `[]`, `[]=`, initTable, pairs
 from strutils import split, parseInt, splitLines, parseInt
 from parseutils import parseBiggestFloat
 from re import match, re
-from interpreter_value import ObjTag, Value, ValueTag, Obj, ObjString, createInt, createDouble, createNil, createBool, createStringVal, isStringVal, takeString, createObjString, downcast, upcast, printObjString, isNumberVal, valuesEqual
+from interpreter_value import ObjTag, Value, ValueTag, Obj, ObjString, createInt, createDouble, createNil, createBool, createStringVal, isStringVal, takeString, createObjString, downcast, upcast, printObjString, isNumberVal, valuesEqual, hash
 from macros import newStmtList, newIdentNode, strVal, quote, add, newStrLitNode, `[]`, error
 from utils import echoErr, kiwiPrint, kiwiPrintErr
 
@@ -26,8 +27,9 @@ type Interpreter = object
     stack: array[STACK_MAX, Value]
     stackTop: int
     heapObjects: seq[ptr Obj]
+    globals: Table[ObjString, Value]
 
-proc newInterpreter*(bytecode: Bytecode): Interpreter = Interpreter(bytecode: bytecode, ic: 0, stackTop: 0, heapObjects: newSeq[ptr Obj]())
+proc newInterpreter*(bytecode: Bytecode): Interpreter = Interpreter(bytecode: bytecode, ic: 0, stackTop: 0, heapObjects: newSeq[ptr Obj](), globals: initTable[ObjString, Value]())
 
 proc push(self: var Interpreter, value: Value): void =
     self.stack[self.stackTop] = value
@@ -109,7 +111,29 @@ proc interpret*(self: var Interpreter): void =
             self.push(createBool(valuesEqual(a, b)))
         of Opcode.Print:
             printKiwiValue(self.pop())
+        of Opcode.Pop:
+            discard self.pop()
+        of Opcode.DefineGlobal:
+            let offset = instructions[self.ic+1]
+            let name = downcast[ObjString](constants[offset].obj)
+            self.globals[name] = self.peek(0)
+            discard self.pop()
+            self.ic += 1
+        of Opcode.GetGlobal:
+            let offset = instructions[self.ic+1]
+            let name = downcast[ObjString](constants[offset].obj)
+            try:
+              let value = self.globals[name]
+              self.push(value)
+              self.ic += 1
+            except KeyError:
+                self.runtimeError(fmt"Undefined global variable {printObjString(name)}")
         of Opcode.Return:
+            for s, v in self.globals.pairs:
+              echoErr "GLOBAL INFO (K,V)-->"
+              echoErr printObjString(s)
+              #printKiwiValue(v)
+              echoErr "<-------------------"
             return
         self.ic += 1
         echoErr fmt"Current ic: {self.ic}"
@@ -129,8 +153,11 @@ type Opcode {.pure.} = enum
     Ge, Geq, Le, Leq,
     # Misc
     Return,
+    # Globals
+    DefineGlobal, GetGlobal,
     # Statements
     Print,
+    Pop,
 
 
 # FIXME: Can't parse multiline strings
@@ -177,6 +204,7 @@ const textToOpcode = {
     "le": Opcode.Le,
     "leq": Opcode.Leq,
     "print": Opcode.Print,
+    "pop": Opcode.Pop,
 }.toTable
 
 type BytecodeParseError = object of Exception
@@ -202,9 +230,20 @@ proc parseConstant(text: string): Value =
 proc parseInstructions(lines: seq[string]): seq[uint8] =
     var result: seq[uint8]
     for instruction in lines:
+        # TODO: Use single if for load_constant, define_global
         if instruction.match(re"load_constant \d"):
             result.add(Opcode.LoadConstant.uint8)
-            let offsetText = instruction.split("constant ")[1]
+            let offsetText = instruction.split("load_constant ")[1]
+            let offset = offsetText.parseInt8
+            result.add(offset)
+        elif instruction.match(re"define_global \d"):
+            result.add(Opcode.DefineGlobal.uint8)
+            let offsetText = instruction.split("define_global ")[1]
+            let offset = offsetText.parseInt8
+            result.add(offset)
+        elif instruction.match(re"get_global \d"):
+            result.add(Opcode.GetGlobal.uint8)
+            let offsetText = instruction.split("get_global ")[1]
             let offset = offsetText.parseInt8
             result.add(offset)
         else:

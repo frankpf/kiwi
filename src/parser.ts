@@ -17,7 +17,10 @@ export class Parser {
 		try {
 			return this.program()
 		} catch (err) {
-			return null
+			if (err instanceof ParseError) {
+				return null
+			}
+			throw err
 		}
 	}
 
@@ -43,21 +46,44 @@ export class Parser {
 				return this.finishWhileStatement()
 			}
 
-			return this.expressionStatement()
+			return this.assignmentOrExpressionStatement()
 		} catch (err) {
-			this.synchronize()
-			return null
+			if (err instanceof ParseError) {
+				this.synchronize()
+				return null
+			}
+			throw err
 		}
 	}
 
-	private finishWhileStatement() {
+	private assignmentOrExpressionStatement(): Ast.Stmt.Assignment | Ast.Stmt.Expression {
+		const expr = this.equality()
+
+		if (this.match(TokenType.Equal)) {
+			const equals = this.previous()
+			const value = this.expression()
+
+			if (expr instanceof Ast.Expr.LetAccess) {
+				const identifier = expr.identifier
+				this.consume(TokenType.Semicolon, 'Expected ";" after assignment')
+				return new Ast.Stmt.Assignment(identifier, value)
+			}
+
+			this.error(equals, 'Invalid assignment target')
+		}
+
+		this.consume(TokenType.Semicolon, 'Expected ";" after assignment')
+		return new Ast.Stmt.Expression(expr)
+	}
+
+	private finishWhileStatement(): Ast.Stmt.While {
 		const condition = this.expression()
 		this.consume(TokenType.OpenBrace, 'Expected "{" after while condition.')
 		const thenBlock = this.finishBlockExpression()
 		return new Ast.Stmt.While(condition, thenBlock)
 	}
 
-	private finishLetDeclarationStatement() {
+	private finishLetDeclarationStatement(): Ast.Stmt {
 		const identifier = this.consume(TokenType.Identifier, 'Expected variable name')
 		let initializer: Ast.Expr | undefined = undefined
 		if (this.match(TokenType.Equal)) {
@@ -73,11 +99,13 @@ export class Parser {
 		return new Ast.Stmt.Print(expr)
 	}
 
+	/*
 	private expressionStatement() {
 		const expr = this.expression()
 		this.consume(TokenType.Semicolon, 'Expected ";" after expression')
 		return new Ast.Stmt.Expression(expr)
 	}
+	*/
 
 	private expression(): Ast.Expr {
 		return this.equality()
