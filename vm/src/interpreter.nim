@@ -342,7 +342,7 @@ proc cleanup(obj: ptr Obj): void =
       echoErr fmt"==Done=="
       #dealloc(str.chars)
       #dealloc(obj)
-      discard reallocate(str.chars, uint64(sizeof(uint8).uint64 * (str.length + 1)), 0.uint64)
+      discard reallocate(str.chars, sizeof(uint8).uint64 * (str.length + 1), 0)
       discard reallocate(obj, sizeof(ObjString).uint64, 0)
 
 proc cleanup*(self: var Interpreter): void =
