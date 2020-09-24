@@ -341,12 +341,40 @@ macro binaryCmpOp(self: var Interpreter, op: untyped): untyped =
             self.runtimeError(`errorMsg`)
     result
 
-type RuntimeError = object of Exception 
+type RuntimeError* = object of Exception 
 proc runtimeError(self: var Interpreter, msg: string): void =
-    let line = self.bytecode.lineNumbers[self.ic-1]
-    kiwiPrintErr fmt"Error in line {line}"
+    let opcodeLineIndex = self.findLineWithError(self.ic)
+    let line = self.bytecode.lineNumbers[opcodeLineIndex]
+    let errorMsg = fmt"Error in line {line}: {msg}"
     self.resetStack
-    raise newException(RuntimeError, msg)
+    raise newException(RuntimeError, errorMsg)
+
+# FIXME: This is studidly inefficient. It's not a big problem
+# because we only call it when there's an error, but we should
+# still find a more efficient scheme for reporting line numbers
+# in runtime errors.
+proc findLineWithError(self: var Interpreter, maxIc: int): int =
+  # We're going to go through the instructions while marking the last
+  # opcode we found and its LOGICAL opcode index (ignoring offsets for example).
+  # When we get to ic, we stop marking LOGICAL opcode indexes.
+  # Then, we index lineNums with the last LOGICAL opcode index.
+  var lastInstructionStartIndex = 0
+  var skipNext = false
+  for i, instr in self.bytecode.instructions.pairs:
+    if i >= maxIc:
+      break
+    if skipNext:
+      skipNext = false
+      continue
+    let opcode = Opcode(instr)
+    case opcode:
+      of Opcode.LoadConstant, Opcode.DefineGlobal, Opcode.GetGlobal, Opcode.SetGlobal:
+        skipNext = true
+      else:
+        discard
+    lastInstructionStartIndex += 1
+
+
 
 
 proc resetStack(self: var Interpreter): void =

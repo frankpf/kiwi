@@ -11,5 +11,5 @@ proc kiwiPrint*(msg: string) =
     echo msg
 
 proc kiwiPrintErr*(msg: string) =
-    stderr.write(msg)
+    stderr.write(msg & "\n")
 
