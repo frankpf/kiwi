@@ -215,6 +215,13 @@ const textToOpcode = {
     "pop": Opcode.Pop,
 }.toTable
 
+const opcodesWithOffset = {
+    "load_constant": Opcode.LoadConstant,
+    "define_global": Opcode.DefineGlobal,
+    "get_global": Opcode.GetGlobal,
+    "set_global": Opcode.SetGlobal,
+}.toTable
+
 type BytecodeParseError = object of Exception
 
 proc parseConstant(text: string): Value =
@@ -237,29 +244,28 @@ proc parseConstant(text: string): Value =
 
 proc parseInstructions(lines: seq[string]): seq[uint8] =
     var result: seq[uint8]
+    var cont = false
     for instruction in lines:
         # TODO: Use single if for load_constant, define_global
-        if instruction.match(re"load_constant \d"):
-            result.add(Opcode.LoadConstant.uint8)
-            let offsetText = instruction.split("load_constant ")[1]
-            let offset = offsetText.parseInt8
-            result.add(offset)
-        elif instruction.match(re"define_global \d"):
-            result.add(Opcode.DefineGlobal.uint8)
-            let offsetText = instruction.split("define_global ")[1]
-            let offset = offsetText.parseInt8
-            result.add(offset)
-        elif instruction.match(re"get_global \d"):
-            result.add(Opcode.GetGlobal.uint8)
-            let offsetText = instruction.split("get_global ")[1]
-            let offset = offsetText.parseInt8
-            result.add(offset)
-        else:
-            if not textToOpcode.hasKey(instruction):
-                echoErr fmt"Unknown instruction! {instruction}"
-                quit(QuitFailure)
-            let opcode = textToOpcode[instruction]
+        for opcodeText, opcode in opcodesWithOffset.pairs:
+          let str = fmt"{opcodeText} \d"
+          if instruction.match(re(str)):
             result.add(opcode.uint8)
+            let offsetText = instruction.split(fmt"{opcodeText} ")[1]
+            let offset = offsetText.parseInt8
+            result.add(offset)
+            cont = true
+            break
+
+        if cont:
+          cont = false
+          continue
+
+        if not textToOpcode.hasKey(instruction):
+            echoErr fmt"Unknown instruction! {instruction}"
+            quit(QuitFailure)
+        let opcode = textToOpcode[instruction]
+        result.add(opcode.uint8)
     result
 
 
