@@ -107,8 +107,9 @@ proc interpret*(self: var Interpreter): void =
         of Opcode.Eql:
             let (b, a) = self.pop2()
             self.push(createBool(valuesEqual(a, b)))
-        of Opcode.Return:
+        of Opcode.Print:
             printKiwiValue(self.pop())
+        of Opcode.Return:
             return
         self.ic += 1
         echoErr fmt"Current ic: {self.ic}"
@@ -128,6 +129,8 @@ type Opcode {.pure.} = enum
     Ge, Geq, Le, Leq,
     # Misc
     Return,
+    # Statements
+    Print,
 
 
 # FIXME: Can't parse multiline strings
@@ -173,6 +176,7 @@ const textToOpcode = {
     "geq": Opcode.Geq,
     "le": Opcode.Le,
     "leq": Opcode.Leq,
+    "print": Opcode.Print,
 }.toTable
 
 type BytecodeParseError = object of Exception

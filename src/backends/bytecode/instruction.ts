@@ -21,6 +21,7 @@ export type Instruction =
 	| Instruction.LessEqual
 	| Instruction.Greater
 	| Instruction.Less
+	| Instruction.Print
 
 export namespace Instruction {
 	interface Instr<T> {
@@ -45,6 +46,9 @@ export namespace Instruction {
 			buf.lineNumbers.push(this.line)
 		}
 	}
+
+	export const Print = SimpleInstr('print')
+	export type Print = InstanceType<typeof Print>
 
 	export const Return = SimpleInstr('return')
 	export type Return = InstanceType<typeof Return>
@@ -215,8 +219,7 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 			return _()
 		},
 		Print({expression}) {
-			throw 'Print not supported'
-			return _()
+			return [...exprMatcher(expression), new Instruction.Print(NOLINE)]
 		},
 		LetDeclaration({identifier, initializer}) {
 			throw 'LetDecl not supported'

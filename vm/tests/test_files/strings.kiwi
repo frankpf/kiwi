@@ -1,23 +1,23 @@
 $ stdout: ab
-"a" + "b";
+print "a" + "b";
 ---
 $ stdout: bbaaa
-"bb" + "aaa";
+print "bb" + "aaa";
 ---
 $ stdout: true
-"bb" == "bb";
+print "bb" == "bb";
 ---
 $ stdout: false
-"bb" == "bbb";
+print "bb" == "bbb";
 ---
 $ stdout: true
-("bb" + "aa") == "bbaa";
+print ("bb" + "aa") == "bbaa";
 ---
 $ stdout: true
-"bbaa" == ("bb" + "aa");
+print "bbaa" == ("bb" + "aa");
 ---
 $ stdout: false
-"bbaa" == ("bb" + "aaa");
+print "bbaa" == ("bb" + "aaa");
 ---
 $ stdout: false
-"bbaaa" == ("bb" + "aa");
+print "bbaaa" == ("bb" + "aa");
