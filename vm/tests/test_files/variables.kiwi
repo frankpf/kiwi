@@ -3,12 +3,12 @@ let a = 101 + 99;
 a = a / 2;
 print a;
 ---
-$ stderr-regex: .*line 0.*access to undefined global variable 'b'
+$ stderr-regex: .*line 2.*access to undefined global variable 'b'
 let a = 101 + 99;
 a = b / 2;
 print a;
 ---
-$ stderr-regex: .*line 0.*assignment to undefined global variable 'b'
+$ stderr-regex: .*line 2.*assignment to undefined global variable 'b'
 let a = 101 + 99;
 b = a / 2;
 print a;

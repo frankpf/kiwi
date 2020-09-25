@@ -54,13 +54,13 @@ export namespace Stmt {
 	export class Expression {
 		static readonly uri = 'Expression'
 		readonly _tag = Expression.uri
-		constructor(readonly expression: Expr) {}
+		constructor(readonly expression: Expr, readonly semicolonToken: Token) {}
 	}
 
 	export class Print {
 		static readonly uri = 'Print'
 		readonly _tag = Print.uri
-		constructor(readonly expression: Expr) {}
+		constructor(readonly expression: Expr, readonly printToken: Token) {}
 	}
 
 	export class LetDeclaration {

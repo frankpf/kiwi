@@ -3,7 +3,6 @@ import {_} from '../../utils'
 import {matchAll} from '../../match'
 import {TokenType} from '../../token'
 
-const NOLINE = 0
 
 export type Instruction =
 	| Instruction.Pop
@@ -197,20 +196,21 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 	function exprMatcher(expr: Ast.Expr): Instruction[] {
 		const matcher = matchAll<Ast.Expr, Instruction[]>({
 			Literal({value, startToken}) {
+				const {line} = startToken
 				if (typeof value === 'number') {
 					if (startToken.type == TokenType.DoubleLit) {
-						return [new Instruction.LoadConstant(NOLINE, value, true)]
+						return [new Instruction.LoadConstant(line, value, true)]
 					} else {
-						return [new Instruction.LoadConstant(NOLINE, value, false)]
+						return [new Instruction.LoadConstant(line, value, false)]
 					}
 				} else if (value === null) {
-					return [new Instruction.LoadNil(NOLINE)]
+					return [new Instruction.LoadNil(line)]
 				} else if (value === true) {
-					return [new Instruction.LoadTrue(NOLINE)]
+					return [new Instruction.LoadTrue(line)]
 				} else if (value === false) {
-					return [new Instruction.LoadFalse(NOLINE)]
+					return [new Instruction.LoadFalse(line)]
 				} else if (typeof value === 'string') {
-					return [new Instruction.LoadConstant(NOLINE, value, false)]
+					return [new Instruction.LoadConstant(line, value, false)]
 				} else {
 					throw new Error(`Unknown type for literal: ${value}`)
 				}
@@ -218,34 +218,35 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 			Binary({left, operator, right}) {
 				const leftInstrs = exprMatcher(left)
 				const rightInstrs = exprMatcher(right)
+				const {line} = operator
 				let opInstr: Instruction
 				switch (operator.type) {
 					case TokenType.Minus:
-						opInstr = new Instruction.Subtract(NOLINE)
+						opInstr = new Instruction.Subtract(line)
 						break
 					case TokenType.Plus:
-						opInstr = new Instruction.Add(NOLINE)
+						opInstr = new Instruction.Add(line)
 						break
 					case TokenType.Star:
-						opInstr = new Instruction.Multiply(NOLINE)
+						opInstr = new Instruction.Multiply(line)
 						break
 					case TokenType.Slash:
-						opInstr = new Instruction.Divide(NOLINE)
+						opInstr = new Instruction.Divide(line)
 						break
 					case TokenType.EqualEqual:
-						opInstr = new Instruction.Equal(NOLINE)
+						opInstr = new Instruction.Equal(line)
 						break
 					case TokenType.Greater:
-						opInstr = new Instruction.Greater(NOLINE)
+						opInstr = new Instruction.Greater(line)
 						break
 					case TokenType.GreaterEqual:
-						opInstr = new Instruction.GreaterEqual(NOLINE)
+						opInstr = new Instruction.GreaterEqual(line)
 						break
 					case TokenType.Less:
-						opInstr = new Instruction.Less(NOLINE)
+						opInstr = new Instruction.Less(line)
 						break
 					case TokenType.LessEqual:
-						opInstr = new Instruction.LessEqual(NOLINE)
+						opInstr = new Instruction.LessEqual(line)
 						break
 					default:
 						throw new Error(`Binary operator ${operator} not supported`)
@@ -260,7 +261,7 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 				let opInstr: Instruction
 				switch (operator.type) {
 					case TokenType.Minus:
-						opInstr = new Instruction.Negate(NOLINE)
+						opInstr = new Instruction.Negate(operator.line)
 						break
 					default:
 						throw new Error(`Unary operator ${operator} not supported`)
@@ -269,7 +270,7 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 			},
 			LetAccess({identifier}) {
 				const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme)
-				return [mkIdentifier, new Instruction.GetGlobal(NOLINE, identifier.lexeme)]
+				return [mkIdentifier, new Instruction.GetGlobal(identifier.line, identifier.lexeme)]
 			},
 			If({condition, thenBlock, elseTail}) {
 				return _()
@@ -281,32 +282,37 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 		return matcher(expr)
 	}
 	const stmtMatcher = matchAll<Ast.Stmt, Instruction[]>({
-		Expression({expression}) {
-			return [...exprMatcher(expression), new Instruction.Pop(NOLINE)]
+		Expression({expression, semicolonToken}) {
+			const instrs = exprMatcher(expression)
+			// TODO Thread semicolon token
+			return [...instrs, new Instruction.Pop(semicolonToken.line)]
 		},
 		Assignment({name, value}) {
 			// FIXME: I think maybe assignment shouldn't try to generate a MakeConstant, only SetGlobal and GetGlobal should.
 			const mkIdentifier = new Instruction.MakeConstant(name.lexeme)
-			return [...exprMatcher(value), mkIdentifier, new Instruction.SetGlobal(NOLINE, name.lexeme)]
+			return [...exprMatcher(value), mkIdentifier, new Instruction.SetGlobal(name.line, name.lexeme)]
 		},
 		While({condition, block}) {
 			throw 'While not supported'
 			return _()
 		},
-		Print({expression}) {
-			return [...exprMatcher(expression), new Instruction.Print(NOLINE)]
+		Print({expression, printToken}) {
+			// TODO Thread print token here
+			return [...exprMatcher(expression), new Instruction.Print(printToken.line)]
 		},
 		LetDeclaration({identifier, initializer}) {
 			const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme)
 			const initializerInstrs = initializer !== undefined
 				? exprMatcher(initializer)
-				: [new Instruction.LoadNil(NOLINE)]
+				: [new Instruction.LoadNil(identifier.line)]
 
-			return [mkIdentifier, ...initializerInstrs, new Instruction.DefineGlobal(NOLINE, mkIdentifier)]
+			return [mkIdentifier, ...initializerInstrs, new Instruction.DefineGlobal(identifier.line, mkIdentifier)]
 
 		},
 	})
-	return ast.flatMap(stmtMatcher).concat([new Instruction.Return(NOLINE)])
+	const instrs = ast.flatMap(stmtMatcher)
+	const lastLine = instrs[instrs.length - 1].line
+	return [...instrs, new Instruction.Return(lastLine)]
 }
 
 export function genBytecode(instructions: Instruction[]): InstructionBuffer {

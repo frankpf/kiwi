@@ -349,15 +349,13 @@ proc runtimeError(self: var Interpreter, msg: string): void =
     self.resetStack
     raise newException(RuntimeError, errorMsg)
 
-# FIXME: This is studidly inefficient. It's not a big problem
+# FIXME: This is stupidly inefficient. It's not a big problem
 # because we only call it when there's an error, but we should
 # still find a more efficient scheme for reporting line numbers
 # in runtime errors.
 proc findLineWithError(self: var Interpreter, maxIc: int): int =
-  # We're going to go through the instructions while marking the last
-  # opcode we found and its LOGICAL opcode index (ignoring offsets for example).
-  # When we get to ic, we stop marking LOGICAL opcode indexes.
-  # Then, we index lineNums with the last LOGICAL opcode index.
+  # We're going to go through all the instructions while counting the 
+  # number of opcodes and ignoring other chunks (e.g. offsets).
   var lastInstructionStartIndex = 0
   var skipNext = false
   for i, instr in self.bytecode.instructions.pairs:
@@ -373,9 +371,7 @@ proc findLineWithError(self: var Interpreter, maxIc: int): int =
       else:
         discard
     lastInstructionStartIndex += 1
-
-
-
+  return lastInstructionStartIndex
 
 proc resetStack(self: var Interpreter): void =
     self.stackTop = 0

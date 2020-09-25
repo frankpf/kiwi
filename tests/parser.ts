@@ -24,7 +24,8 @@ function testParser() {
                             ),
                             new Token(TokenType.Plus, '+', null, 2),
                             new Ast.Expr.Literal(3, new Token(TokenType.IntegerLit, '3', 3, 2)),
-                        )
+                        ),
+			new Token(TokenType.Print, 'print', null, 2),
                     )
                 ])
             )

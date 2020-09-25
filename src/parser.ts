@@ -35,7 +35,7 @@ export class Parser {
 	private statement(): Ast.Stmt | null {
 		try {
 			if (this.match(TokenType.Print)) {
-				return this.finishPrintStatement()
+				return this.finishPrintStatement(this.previous())
 			}
 
 			if (this.match(TokenType.Let)) {
@@ -73,7 +73,7 @@ export class Parser {
 		}
 
 		this.consume(TokenType.Semicolon, 'Expected ";" after assignment')
-		return new Ast.Stmt.Expression(expr)
+		return new Ast.Stmt.Expression(expr, this.previous())
 	}
 
 	private finishWhileStatement(): Ast.Stmt.While {
@@ -93,10 +93,10 @@ export class Parser {
 		return new Ast.Stmt.LetDeclaration(identifier, initializer)
 	}
 
-	private finishPrintStatement() {
+	private finishPrintStatement(printToken: Token) {
 		const expr = this.expression()
 		this.consume(TokenType.Semicolon, 'Expected ";" after expression')
-		return new Ast.Stmt.Print(expr)
+		return new Ast.Stmt.Print(expr, printToken)
 	}
 
 	/*
