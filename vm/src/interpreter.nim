@@ -28,8 +28,19 @@ type Interpreter = object
     stackTop: int
     heapObjects: seq[ptr Obj]
     globals: Table[ObjString, Value]
+    # FIXME: Expose these only in testing
+    opcodes*: seq[Opcode]
+    opcodeArgs*: Table[string, seq[int]]
 
-proc newInterpreter*(bytecode: Bytecode): Interpreter = Interpreter(bytecode: bytecode, ic: 0, stackTop: 0, heapObjects: newSeq[ptr Obj](), globals: initTable[ObjString, Value]())
+proc newInterpreter*(bytecode: Bytecode): Interpreter = Interpreter(
+    bytecode: bytecode,
+    ic: 0,
+    stackTop: 0,
+    heapObjects: newSeq[ptr Obj](),
+    globals: initTable[ObjString, Value](),
+    opcodes: newSeq[Opcode](),
+    opcodeArgs: initTable[string, seq[int]](),
+)
 
 proc push(self: var Interpreter, value: Value): void =
     self.stack[self.stackTop] = value
@@ -48,6 +59,7 @@ proc interpret*(self: var Interpreter): void =
     let constants = self.bytecode.constants
     while true:
         let opcode = Opcode(instructions[self.ic])
+        self.registerOpcode(opcode)
         echoErr fmt"Interpreting opcode {opcode}"
         case opcode:
         of Opcode.LoadConstant:
@@ -436,7 +448,19 @@ proc cleanup*(self: var Interpreter): void =
 
   return
 
+# FIXME: Compile these two procs only in tests
+proc registerOpcode*(self: var Interpreter, opcode: Opcode): void =
+  self.opcodes.add(opcode)
 
+proc registerOpcodeArg*(self: var Interpreter, arg: uint8): void =
+  self.registerOpcodeArg(arg.int)
+
+proc registerOpcodeArg*(self: var Interpreter, arg: int): void =
+  let key = $self.opcodes.len
+  if not self.opcodeArgs.hasKey(key):
+      self.opcodeArgs[key] = @[]
+      return
+  self.opcodeArgs[key].add(arg)
 
 func peek(self: Interpreter, dist: Natural): Value =
     self.stack[self.stackTop - dist - 1]
