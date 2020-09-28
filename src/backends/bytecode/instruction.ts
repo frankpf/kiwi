@@ -161,6 +161,9 @@ export namespace Instruction {
 	export const Negate = SimpleInstr('negate')
 	export type Negate = InstanceType<typeof Negate>
 
+	export const Not = SimpleInstr('not')
+	export type Not = InstanceType<typeof Not>
+
 	export const Subtract = SimpleInstr('sub')
 	export type Subtract = InstanceType<typeof Subtract>
 
@@ -289,12 +292,15 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction.T[] {
 			Grouping({expression}) {
 				return exprMatcher(expression)
 			},
-			Unary({operator, right}) {
+			Unary({operator, right, startToken}) {
 				const rightInstrs = exprMatcher(right)
-				let opInstr: Instruction
+				let opInstr: Instruction.T
 				switch (operator.type) {
 					case TokenType.Minus:
-						opInstr = new Instruction.Negate(operator.line)
+						opInstr = new Instruction.Negate(startToken.line)
+						break
+					case TokenType.Bang:
+						opInstr = new Instruction.Not(startToken.line)
 						break
 					default:
 						throw new Error(`Unary operator ${operator} not supported`)
