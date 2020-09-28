@@ -283,9 +283,7 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 	}
 	const stmtMatcher = matchAll<Ast.Stmt, Instruction[]>({
 		Expression({expression, semicolonToken}) {
-			const instrs = exprMatcher(expression)
-			// TODO Thread semicolon token
-			return [...instrs, new Instruction.Pop(semicolonToken.line)]
+			return exprMatcher(expression)
 		},
 		Assignment({name, value}) {
 			// FIXME: I think maybe assignment shouldn't try to generate a MakeConstant, only SetGlobal and GetGlobal should.

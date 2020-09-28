@@ -6,32 +6,38 @@ export type Expr = Expr.Literal | Expr.Unary | Expr.Binary | Expr.Grouping | Exp
 export namespace Expr {
 	export class Literal {
 		readonly _tag = 'Literal'
-		constructor(readonly value: KiwiType, readonly startToken: Token) {}
+		constructor(readonly value: KiwiType, readonly _startToken: Token) {}
+		get startToken() { return this._startToken }
 	}
 
 	export class Unary {
 		readonly _tag = 'Unary'
 		constructor(readonly operator: Token, readonly right: Expr) {}
+		get startToken() { return this.operator }
 	}
 
 	export class Binary {
 		readonly _tag = 'Binary'
 		constructor(readonly left: Expr, readonly operator: Token, readonly right: Expr) {}
+		get startToken() { return this.operator }
 	}
 
 	export class Grouping {
 		readonly _tag = 'Grouping'
-		constructor(readonly expression: Expr) {}
+		constructor(readonly expression: Expr, readonly openParenToken: Token) {}
+		get startToken() { return this.openParenToken }
 	}
 
 	export class LetAccess {
 		readonly _tag = 'LetAccess'
 		constructor(readonly identifier: Token) {}
+		get startToken() { return this.identifier }
 	}
 
 	export class Block {
 		readonly _tag = 'Block'
-		constructor(readonly statements: Stmt[]) {}
+		constructor(readonly statements: Stmt[], readonly openBraceToken: Token) {}
+		get startToken() { return this.openBraceToken }
 	}
 
 	export class If {
@@ -41,7 +47,9 @@ export namespace Expr {
 			readonly thenBlock: Block,
 			// We call it elseTail and not elseBlock because it could be an `else if { ... }`
 			readonly elseTail?: Block | If,
+			readonly elseTailToken?: Token,
 		) {}
+		get startToken(): Token { return this.condition.startToken }
 	}
 }
 

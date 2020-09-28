@@ -79,7 +79,7 @@ export class Parser {
 	private finishWhileStatement(): Ast.Stmt.While {
 		const condition = this.expression()
 		this.consume(TokenType.OpenBrace, 'Expected "{" after while condition.')
-		const thenBlock = this.finishBlockExpression()
+		const thenBlock = this.finishBlockExpression(this.previous())
 		return new Ast.Stmt.While(condition, thenBlock)
 	}
 
@@ -172,7 +172,7 @@ export class Parser {
 		if (this.match(TokenType.OpenParen)) {
 			const expr = this.expression()
 			this.consume(TokenType.CloseParen, 'Expected ")" after expression')
-			return new Ast.Expr.Grouping(expr as Ast.Expr)
+			return new Ast.Expr.Grouping(expr as Ast.Expr, this.previous())
 		}
 
 		if (this.match(TokenType.If)) {
@@ -180,7 +180,7 @@ export class Parser {
 		}
 
 		if (this.match(TokenType.OpenBrace)) {
-			return this.finishBlockExpression()
+			return this.finishBlockExpression(this.previous())
 		}
 
 		throw this.error(this.peek(), 'Expected expression')
@@ -189,7 +189,7 @@ export class Parser {
 	private finishIfExpression(): Ast.Expr.If {
 		const condition = this.expression()
 		this.consume(TokenType.OpenBrace, 'Expected "{" after if condition')
-		const thenBlock = this.finishBlockExpression()
+		const thenBlock = this.finishBlockExpression(this.previous())
 		if (this.match(TokenType.Else)) {
 			if (this.match(TokenType.If)) {
 				// else if {
@@ -198,18 +198,18 @@ export class Parser {
 			} else {
 				// else {}
 				this.consume(TokenType.OpenBrace, 'Expected "{" after else')
-				const elseBlock = this.finishBlockExpression()
+				const elseBlock = this.finishBlockExpression(this.previous())
 				return new Ast.Expr.If(condition, thenBlock, elseBlock)
 			}
 		}
 		return new Ast.Expr.If(condition, thenBlock)
 	}
 
-	private finishBlockExpression(): Ast.Expr.Block {
+	private finishBlockExpression(openBraceToken: Token): Ast.Expr.Block {
 		const statements = [] as Ast.Stmt[]
 		while (!this.isAtEnd()) {
 			if (this.match(TokenType.CloseBrace)) {
-				return new Ast.Expr.Block(statements)
+				return new Ast.Expr.Block(statements, openBraceToken)
 			}
 			const statement = this.statement()
 			if (statement) {
