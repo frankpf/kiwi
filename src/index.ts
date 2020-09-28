@@ -35,7 +35,10 @@ export async function main(args: string[]) {
 		process.exit(1)
 	}
 	const nonNullStatements = ast.filter((s): s is Ast.Stmt => s !== null)
-	const bytecode = fromAst(nonNullStatements)
+
+	const bytecode = args.includes('--pretty')
+		? fromAst(nonNullStatements, { source: fileContent })
+		: fromAst(nonNullStatements)
 	process.stdout.write(bytecode)
 }
 

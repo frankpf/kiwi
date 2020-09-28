@@ -346,6 +346,56 @@ export function toBuf(instrBuf: InstructionBuffer): string {
 	return final_bytecode
 }
 
+export function toAnnotatedBuf(instrBuf: InstructionBuffer, source: string): string {
+	let final_bytecode = ''
+	console.log('VERSION 0\n')
+
+	console.log('START INSTRUCTIONS')
+	let printSrc = true;
+	const srcLines  = source.split('\n')
+	let currentByte = 0
+	for (let i = 0; i < instrBuf.instructions.length; i++) {
+		const instr = instrBuf.instructions[i]
+		const currentLine = instrBuf.lineNumbers[i]
+		const prevLine = instrBuf.lineNumbers[i-1]
+		const nextLine = instrBuf.lineNumbers[i+1]
+
+		const src = srcLines[currentLine-1]
+		if (prevLine === currentLine) {
+			printSrc = false
+		} else {
+			printSrc = true
+		}
+		const line = i.toString().padStart(10, '0')
+		let bytesInLine = instr.split(' ').length
+		bytesInLine += instr.startsWith('jump') ? 1 : 0
+		if (currentLine === -1) {
+			console.log(line, currentByte.toString().padStart(10, '0'), instr.padEnd(50, ' ') + '.')
+			continue
+		}
+		if (printSrc) {
+			console.log(line, currentByte.toString().padStart(10, '0'), instr.padEnd(50, ' ') + '| ' + currentLine.toString().padEnd(5, ' ') + src)
+		} else {
+			if (nextLine !== undefined && nextLine !== currentLine) {
+				console.log(line, currentByte.toString().padStart(10, '0'), instr.padEnd(50, ' ') + '-')
+			} else {
+				console.log(line, currentByte.toString().padStart(10, '0'), instr.padEnd(50, ' ') + '* ')
+			}
+		}
+		currentByte += bytesInLine
+	}
+	console.log('END\n')
+
+	final_bytecode += 'START CONSTANTS\n'
+	for (let i = 0; i < instrBuf.constants.length; i++) {
+		const line = i.toString().padStart(10, '0')
+		console.log(line, instrBuf.constants[i])
+	}
+	final_bytecode += 'END\n\n'
+
+	return final_bytecode
+}
+
 function getBody<T extends {toString(): string}>(items: T[]): string {
 	const body = items.map(_ => _.toString())
 	if (body.length == 0) {
