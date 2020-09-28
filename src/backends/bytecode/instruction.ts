@@ -1,8 +1,10 @@
 import * as Ast from '../../ast'
-import {_} from '../../utils'
+import {_, TupleLength} from '../../utils'
 import {matchAll} from '../../match'
 import {TokenType} from '../../token'
+import {Resolver, Local} from '../../localresolver'
 
+const resolver = new Resolver()
 
 
 export namespace Instruction {
@@ -28,7 +30,7 @@ export namespace Instruction {
 		encode(buf: InstructionBuffer) {
 			const constant = MakeConstant.globalConstants[this.constant]
 			if (constant !== undefined) {
-				this._index = constant.index
+				this._index = constant.index()
 				return
 			}
 
@@ -44,7 +46,7 @@ export namespace Instruction {
 			return MakeConstant.globalConstants[constant]
 		}
 
-		get index() {
+		index() {
 			if (this._index === undefined) {
 				throw new Error('Tried to access constant with no index')
 			}
@@ -54,10 +56,10 @@ export namespace Instruction {
 
 	export class SetGlobal implements Instr<'SetGlobal'> {
 		readonly _tag = 'SetGlobal'
-		constructor(readonly line: number, readonly constantString: string) {}
+		constructor(readonly line: number, readonly constant: MakeConstant) {}
 
 		encode(buf: InstructionBuffer) {
-			buf.instructions.push(`set_global ${MakeConstant.for(this.constantString).index}`)
+			buf.instructions.push(`set_global ${this.constant.index()}`)
 			buf.lineNumbers.push(this.line)
 		}
 
@@ -66,22 +68,28 @@ export namespace Instruction {
 
 	export class GetGlobal implements Instr<'GetGlobal'> {
 		readonly _tag = 'GetGlobal'
-		constructor(readonly line: number, readonly constantString: string) {}
+		constructor(readonly line: number, readonly constant: MakeConstant) {}
 
 		encode(buf: InstructionBuffer) {
-			buf.instructions.push(`get_global ${MakeConstant.for(this.constantString).index}`)
+			buf.instructions.push(`get_global ${this.constant.index()}`)
 			buf.lineNumbers.push(this.line)
 		}
 
 		sizeInBytes() { return 2 }
 	}
 
+	export const SetLocal = SimpleInstr<'set_local', [number]>('set_local', 1)
+	export type SetLocal = InstanceType<typeof SetLocal>
+
+	export const GetLocal = SimpleInstr<'get_local', [number]>('get_local', 1)
+	export type GetLocal = InstanceType<typeof GetLocal>
+
 	export class DefineGlobal implements Instr<'DefineGlobal'> {
 		readonly _tag = 'DefineGlobal'
 		constructor(readonly line: number, readonly constant: MakeConstant) {}
 
 		encode(buf: InstructionBuffer): void {
-			buf.instructions.push(`define_global ${this.constant.index}`)
+			buf.instructions.push(`define_global ${this.constant.index()}`)
 			buf.lineNumbers.push(this.line)
 		}
 
@@ -155,12 +163,20 @@ export namespace Instruction {
 	export const LessEqual = SimpleInstr('leq')
 	export type LessEqual = InstanceType<typeof LessEqual>
 
-	function SimpleInstr<T extends string>(instr: T) {
-		const classRef: { new(line: number): Instr<T> } = class implements Instr<T> {
+	function SimpleInstr<T extends string, Args extends any[] = []>(instr: T, numArgs: TupleLength<Args> | 0 = 0) {
+		const classRef: { new(line: number, ...argList: TupleLength<Args> extends 0 ? never : Args): Instr<T> } = class implements Instr<T> {
 			readonly _tag = instr
-			constructor(readonly line: number) {}
+			args: any[]
+			constructor(readonly line: number, ...argList: TupleLength<Args> extends 0 ? never : Args) {
+				this.args = argList || []
+				if ((this.args.length) > numArgs) {
+					throw new Error(
+						`Trying to call instruction ${instr} with ${this.args.length} arguments, but it expects ${numArgs} arguments`
+					)
+				}
+			}
 			encode(buf: InstructionBuffer) {
-				buf.instructions.push(instr)
+				buf.instructions.push([instr, ...this.args].join(' '))
 				buf.lineNumbers.push(this.line)
 			}
 			sizeInBytes() { return 1 + numArgs }
@@ -207,11 +223,11 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction.T[] {
 					throw new Error(`Unknown type for literal: ${value}`)
 				}
 			},
-			Binary({left, operator, right}) {
+			Binary({left, operator, right, startToken}) {
 				const leftInstrs = exprMatcher(left)
 				const rightInstrs = exprMatcher(right)
-				const {line} = operator
-				let opInstr: Instruction
+				const {line} = startToken
+				let opInstr: Instruction.T
 				switch (operator.type) {
 					case TokenType.Minus:
 						opInstr = new Instruction.Subtract(line)
@@ -260,15 +276,23 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction.T[] {
 				}
 				return [...rightInstrs, opInstr]
 			},
-			LetAccess({identifier}) {
-				const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme)
-				return [mkIdentifier, new Instruction.GetGlobal(identifier.line, identifier.lexeme)]
+			LetAccess({identifier, startToken}) {
+				const localIndex = resolver.resolveLocal(identifier)
+				if (localIndex === null) {
+					const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme)
+					return [mkIdentifier, new Instruction.GetGlobal(startToken.line, mkIdentifier)]
+				} else {
+					return [new Instruction.GetLocal(startToken.line, localIndex)]
+				}
 			},
 			If({condition, thenBlock, elseTail}) {
 				return _()
 			},
 			Block({statements}) {
-				return _()
+				resolver.beginScope()
+				const instrs = statements.flatMap(stmtMatcher)
+				const popInstrs = resolver.endScope()
+				return [...instrs, ...popInstrs]
 			},
 		})
 		return matcher(expr)
@@ -278,9 +302,14 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction.T[] {
 			return exprMatcher(expression)
 		},
 		Assignment({name, value}) {
-			// FIXME: I think maybe assignment shouldn't try to generate a MakeConstant, only SetGlobal and GetGlobal should.
-			const mkIdentifier = new Instruction.MakeConstant(name.lexeme)
-			return [...exprMatcher(value), mkIdentifier, new Instruction.SetGlobal(name.line, name.lexeme)]
+			const localIndex = resolver.resolveLocal(name)
+			if (localIndex === null) {
+				// FIXME: I think maybe assignment shouldn't try to generate a MakeConstant, only SetGlobal and GetGlobal should.
+				const mkIdentifier = new Instruction.MakeConstant(name.lexeme)
+				return [...exprMatcher(value), mkIdentifier, new Instruction.SetGlobal(name.line, mkIdentifier)]
+			} else {
+				return [...exprMatcher(value), new Instruction.SetLocal(name.line, localIndex)]
+			}
 		},
 		While({condition, block}) {
 			throw 'While not supported'
@@ -291,12 +320,23 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction.T[] {
 			return [...exprMatcher(expression), new Instruction.Print(printToken.line)]
 		},
 		LetDeclaration({identifier, initializer}) {
+			resolver.declareVariable(identifier)
 			const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme)
+
 			const initializerInstrs = initializer !== undefined
 				? exprMatcher(initializer)
 				: [new Instruction.LoadNil(identifier.line)]
 
-			return [mkIdentifier, ...initializerInstrs, new Instruction.DefineGlobal(identifier.line, mkIdentifier)]
+			// For local variables, there's no "DefineLocal" instruction. The VM is already
+			// going to have whatever value we want as the local at the top of the stack.
+			// We also don't put the local name into the constant table since we're going
+			// to use array indexing to find locals.
+			if (resolver.inLocalScope()) {
+				resolver.markInitialized()
+				return initializerInstrs
+			} else {
+				return [mkIdentifier, ...initializerInstrs, new Instruction.DefineGlobal(identifier.line, mkIdentifier)]
+			}
 
 		},
 	})
