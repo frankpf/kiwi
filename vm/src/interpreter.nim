@@ -4,10 +4,10 @@ from types import KiwiType
 from sequtils import map, mapIt
 from strformat import fmt
 from tables import Table, `[]`, `[]=`, initTable, pairs
-from strutils import split, parseInt, splitLines, parseInt
+from strutils import split, parseInt, splitLines, parseInt, startsWith
 from parseutils import parseBiggestFloat
-from re import match, re
-from interpreter_value import ObjTag, Value, ValueTag, Obj, ObjString, createInt, createDouble, createNil, createBool, createStringVal, isStringVal, takeString, createObjString, downcast, upcast, printObjString, isNumberVal, valuesEqual, hash
+from re import match, re, split
+from interpreter_value import ObjTag, Value, ValueTag, Obj, ObjString, createInt, createDouble, createNil, createBool, createStringVal, isStringVal, takeString, createObjString, downcast, upcast, printObjString, isNumberVal, valuesEqual, hash, isTruthy
 from macros import newStmtList, newIdentNode, strVal, quote, add, newStrLitNode, `[]`, error
 from utils import echoErr, kiwiPrint, kiwiPrintErr
 
@@ -64,6 +64,7 @@ proc interpret*(self: var Interpreter): void =
         case opcode:
         of Opcode.LoadConstant:
             let offset = instructions[self.ic+1]
+            self.registerOpcodeArg(offset)
             let constant = constants[offset]
             self.push(constant)
             self.ic += 1
@@ -85,6 +86,9 @@ proc interpret*(self: var Interpreter): void =
                 self.push(createDouble(-value.doubleVal))
             else:
                 discard
+        of Opcode.Not:
+            let value = self.pop()
+            self.push(createBool(not value.isTruthy))
         of Opcode.Add, Opcode.Sub, Opcode.Mul, Opcode.Div:
             # TODO: Figure out if there's a way to let nimc know
             # that Opcode's type here is narrowed to {Add,Sub,Mul,Div}
@@ -127,12 +131,14 @@ proc interpret*(self: var Interpreter): void =
             discard self.pop()
         of Opcode.DefineGlobal:
             let offset = instructions[self.ic+1]
+            self.registerOpcodeArg(offset)
             let name = downcast[ObjString](constants[offset].obj)
             self.globals[name] = self.peek(0)
             discard self.pop()
             self.ic += 1
         of Opcode.GetGlobal:
             let offset = instructions[self.ic+1]
+            self.registerOpcodeArg(offset)
             let name = downcast[ObjString](constants[offset].obj)
             try:
               let value = self.globals[name]
@@ -142,12 +148,38 @@ proc interpret*(self: var Interpreter): void =
                 self.runtimeError(fmt"Access to undefined global variable '{printObjString(name)}'")
         of Opcode.SetGlobal:
             let offset = instructions[self.ic+1]
+            self.registerOpcodeArg(offset)
             let name = downcast[ObjString](constants[offset].obj)
             if not self.globals.hasKey(name):
                 self.runtimeError(fmt"Assignment to undefined global variable '{printObjString(name)}'")
             self.globals[name] = self.peek(0)
             discard self.pop()
             self.ic += 1
+        of Opcode.GetLocal:
+            let offset = instructions[self.ic+1]
+            self.registerOpcodeArg(offset)
+            self.push(self.stack[offset])
+            self.ic += 1
+        of Opcode.SetLocal:
+            let offset = instructions[self.ic+1]
+            self.registerOpcodeArg(offset)
+            self.stack[offset] = self.peek(0)
+            self.ic += 1
+        of Opcode.Jump:
+          let highBits = instructions[self.ic+1]
+          let lowBits = instructions[self.ic+2]
+          let bytesToJumpOver = int((highBits shl 8) or lowBits)
+          self.registerOpcodeArg(bytesToJumpOver)
+          self.ic += bytesToJumpOver + 2
+        of Opcode.JumpIfFalse:
+          let highBits = instructions[self.ic+1]
+          let lowBits = instructions[self.ic+2]
+          let bytesToJumpOver = int((highBits shl 8) or lowBits)
+          self.registerOpcodeArg(bytesToJumpOver)
+          if not self.peek(0).isTruthy:
+              self.ic += bytesToJumpOver
+          discard self.pop()
+          self.ic += 2
         of Opcode.Return:
             for s, v in self.globals.pairs:
               echoErr "GLOBAL INFO (K,V)-->"
