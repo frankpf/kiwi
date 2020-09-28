@@ -115,6 +115,31 @@ export namespace Instruction {
 		sizeInBytes() { return 2 }
 	}
 
+	export enum JumpMode { IfFalse, Always }
+	export class Jump implements Instr<'Jump'> {
+		readonly _tag = 'Jump'
+
+		constructor(readonly line: number, readonly mode: JumpMode, readonly jumpOver: number) {}
+
+		encode(buf: InstructionBuffer): void {
+			const opcode = this.mode === JumpMode.Always ? 'jump' : 'jump_if_false'
+
+			// We're going to use two bytes in the interpreter for the jump offset.
+			// TODO: Should this be encoded in the bytecode generator?
+			// I think maybe it should go in the interpreter bytecode parser?
+			// that way an error is still thrown at compile time, but it's the responsibility
+			// of the interpreter.
+			if (this.jumpOver > 2**16 - 1) {
+				throw new Error(`Too much code to jump over (more than ${2**16} instructions)`)
+			}
+
+			buf.instructions.push(`${opcode} ${this.jumpOver}`)
+			buf.lineNumbers.push(this.line)
+		}
+
+		sizeInBytes() { return 3 }
+	}
+
 	export const Print = SimpleInstr('print')
 	export type Print = InstanceType<typeof Print>
 
@@ -285,8 +310,28 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction.T[] {
 					return [new Instruction.GetLocal(startToken.line, localIndex)]
 				}
 			},
-			If({condition, thenBlock, elseTail}) {
-				return _()
+			If({condition, thenBlock, elseTail, startToken}) {
+				const conditionInstrs = exprMatcher(condition)
+				const thenBlockInstrs = exprMatcher(thenBlock)
+
+				let bytesToJumpOver = thenBlockInstrs.map(_ => _.sizeInBytes()).reduce((a, b) => a + b)
+				if (elseTail !== undefined) {
+					bytesToJumpOver += 3
+				}
+				// FIXME: this doesn't make sense. I think we can emit -1 for the jump linenum
+				// if we assume it won't ever error, but right now it can have an error if the jump
+				// offset doesn't fit in 16 bits. Once we have a jump opcode that works with arbitrary
+				// offsets, we can use -1.
+				const jump = new Instruction.Jump(startToken.line, Instruction.JumpMode.IfFalse, bytesToJumpOver)
+
+				const instrs = [...conditionInstrs, jump, ...thenBlockInstrs]
+				if (elseTail !== undefined) {
+					const elseTailInstrs = exprMatcher(elseTail)
+					const bytesToJumpOver = elseTailInstrs.map(_ => _.sizeInBytes()).reduce((a, b) => a + b)
+					const jump2 = new Instruction.Jump(elseTail.startToken.line, Instruction.JumpMode.Always, bytesToJumpOver)
+					return instrs.concat([jump2, ...elseTailInstrs])
+				}
+				return instrs
 			},
 			Block({statements}) {
 				resolver.beginScope()
