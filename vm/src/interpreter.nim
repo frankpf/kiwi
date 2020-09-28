@@ -159,7 +159,8 @@ proc interpret*(self: var Interpreter): void =
         echoErr fmt"Current ic: {self.ic}"
         echoErr fmt"Current stack: {self.stack[0..<self.stackTop]}"
 
-type Opcode {.pure.} = enum
+# FIXME: Export only when testing
+type Opcode* {.pure.} = enum
     # Stack manipulation
     LoadConstant = 0,
     LoadNil,
@@ -167,17 +168,23 @@ type Opcode {.pure.} = enum
     LoadFalse,
     # Unary operations
     Negate,
+    # Boolean unary ops
+    Not,
     # Binary operations
     Add, Sub, Mul, Div,
+    # Boolean binary ops,
     Eql,
     Ge, Geq, Le, Leq,
     # Misc
     Return,
-    # Globals
+    # Variables
     DefineGlobal, GetGlobal, SetGlobal,
+    GetLocal, SetLocal,
     # Statements
     Print,
     Pop,
+    # Control flow
+    Jump, JumpIfFalse,
 
 
 # FIXME: Can't parse multiline strings
@@ -225,6 +232,7 @@ const textToOpcode = {
     "leq": Opcode.Leq,
     "print": Opcode.Print,
     "pop": Opcode.Pop,
+    "not": Opcode.Not,
 }.toTable
 
 const opcodesWithOffset = {
@@ -232,6 +240,8 @@ const opcodesWithOffset = {
     "define_global": Opcode.DefineGlobal,
     "get_global": Opcode.GetGlobal,
     "set_global": Opcode.SetGlobal,
+    "get_local": Opcode.GetLocal,
+    "set_local": Opcode.SetLocal,
 }.toTable
 
 type BytecodeParseError = object of Exception
@@ -258,6 +268,20 @@ proc parseInstructions(lines: seq[string]): seq[uint8] =
     var result: seq[uint8]
     var cont = false
     for instruction in lines:
+        if instruction.match(re"jump_if_false|jump \d"):
+          let opcode = if instruction.startsWith("jump_if_false"):
+            Opcode.JumpIfFalse
+          else:
+            Opcode.Jump
+          result.add(opcode.uint8)
+          let bytesToJumpOver = instruction.split(re"jump.* ")[1].parseInt8
+          let highBits = (bytesToJumpOver shr 8) and 0xff
+          let lowBits = (bytesToJumpOver) and 0xff
+          result.add(highBits)
+          result.add(lowBits)
+
+          continue
+
         # TODO: Use single if for load_constant, define_global
         for opcodeText, opcode in opcodesWithOffset.pairs:
           let str = fmt"{opcodeText} \d"
