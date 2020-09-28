@@ -31,6 +31,7 @@ export namespace Instruction {
 	interface Instr<T> {
 		readonly _tag: T
 		readonly line: number
+		sizeInBytes(): number
 		encode(buf: InstructionBuffer): void
 	}
 
@@ -57,6 +58,8 @@ export namespace Instruction {
 			MakeConstant.globalConstants[this.constant] = this
 		}
 
+		sizeInBytes() { return 0 }
+
 		static for(constant: string): MakeConstant {
 			return MakeConstant.globalConstants[constant]
 		}
@@ -77,6 +80,8 @@ export namespace Instruction {
 			buf.instructions.push(`set_global ${MakeConstant.for(this.constantString).index}`)
 			buf.lineNumbers.push(this.line)
 		}
+
+		sizeInBytes() { return 2 }
 	}
 
 	export class GetGlobal implements Instr<'GetGlobal'> {
@@ -87,6 +92,8 @@ export namespace Instruction {
 			buf.instructions.push(`get_global ${MakeConstant.for(this.constantString).index}`)
 			buf.lineNumbers.push(this.line)
 		}
+
+		sizeInBytes() { return 2 }
 	}
 
 	export class DefineGlobal implements Instr<'DefineGlobal'> {
@@ -97,6 +104,8 @@ export namespace Instruction {
 			buf.instructions.push(`define_global ${this.constant.index}`)
 			buf.lineNumbers.push(this.line)
 		}
+
+		sizeInBytes() { return 2 }
 	}
 
 	export class LoadConstant implements Instr<'LoadConstant'> {
@@ -114,6 +123,8 @@ export namespace Instruction {
 			buf.instructions.push(`load_constant ${len - 1}`)
 			buf.lineNumbers.push(this.line)
 		}
+
+		sizeInBytes() { return 2 }
 	}
 
 	export const Print = SimpleInstr('print')
@@ -172,6 +183,7 @@ export namespace Instruction {
 				buf.instructions.push(instr)
 				buf.lineNumbers.push(this.line)
 			}
+			sizeInBytes() { return 1 + numArgs }
 		}
 
 		return classRef
