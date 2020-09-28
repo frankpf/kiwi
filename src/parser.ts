@@ -170,9 +170,10 @@ export class Parser {
 		}
 
 		if (this.match(TokenType.OpenParen)) {
+			const openParenToken = this.previous()
 			const expr = this.expression()
 			this.consume(TokenType.CloseParen, 'Expected ")" after expression')
-			return new Ast.Expr.Grouping(expr as Ast.Expr, this.previous())
+			return new Ast.Expr.Grouping(expr as Ast.Expr, openParenToken)
 		}
 
 		if (this.match(TokenType.If)) {

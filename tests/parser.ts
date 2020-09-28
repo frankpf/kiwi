@@ -113,7 +113,7 @@ function testParser() {
 								new Token(TokenType.Print, 'print', null, 4),
 							)
 						],
-						new Token(TokenType.OpenBrace, '{', null, 1)
+						new Token(TokenType.OpenBrace, '{', null, 3)
 					),
 					new Ast.Expr.If(
 						new Ast.Expr.LetAccess(ident('b', 5)),
@@ -124,7 +124,7 @@ function testParser() {
 									new Token(TokenType.Print, 'print', null, 6),
 								)
 							],
-							new Token(TokenType.OpenBrace, '{', null, 1)
+							new Token(TokenType.OpenBrace, '{', null, 5)
 						),
 						new Ast.Expr.Block(
 							[
@@ -133,7 +133,7 @@ function testParser() {
 									new Token(TokenType.Print, 'print', null, 8),
 								)
 							],
-							new Token(TokenType.OpenBrace, '{', null, 1)
+							new Token(TokenType.OpenBrace, '{', null, 7)
 						),
 					),
 				),
