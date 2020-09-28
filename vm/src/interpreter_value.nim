@@ -106,3 +106,13 @@ func valuesEqual*(a: Value, b: Value): bool =
         return strA.length == strB.length and
             equalMem(strA.chars, strB.chars, strA.length)
 
+
+func isTruthy*(val: Value): bool =
+  if val.kind == ValueTag.Nil: return false
+
+  case val.kind:
+  of ValueTag.Bool:
+    return val.boolVal
+  else:
+    return true
+
