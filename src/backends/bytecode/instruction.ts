@@ -221,11 +221,14 @@ type InstructionBuffer = {
 	lineNumbers: number[]
 }
 
-export function fromAst(ast: Ast.Stmt[]): string {
+export function fromAst(ast: Ast.Stmt[], { source }: { source?: string } = {}): string {
 	const instructions = instructionsFromAst(ast)
 	const buf = genBytecode(instructions)
-	const text = toBuf(buf)
-	return text
+	if (source !== undefined) {
+		return toAnnotatedBuf(buf, source)
+	} else {
+		return toBuf(buf)
+	}
 }
 
 function instructionsFromAst(ast: Ast.Stmt[]): Instruction.T[] {
