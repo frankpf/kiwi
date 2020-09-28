@@ -4,30 +4,10 @@ import {matchAll} from '../../match'
 import {TokenType} from '../../token'
 
 
-export type Instruction =
-	| Instruction.Pop
-	| Instruction.LoadConstant
-	| Instruction.LoadNil
-	| Instruction.LoadTrue
-	| Instruction.LoadFalse
-	| Instruction.Add
-	| Instruction.Subtract
-	| Instruction.Multiply
-	| Instruction.Divide
-	| Instruction.Negate
-	| Instruction.Return
-	| Instruction.Equal
-	| Instruction.GreaterEqual
-	| Instruction.LessEqual
-	| Instruction.Greater
-	| Instruction.Less
-	| Instruction.Print
-	| Instruction.MakeConstant
-	| Instruction.DefineGlobal
-	| Instruction.GetGlobal
-	| Instruction.SetGlobal
 
 export namespace Instruction {
+	export type T = Instr<any>
+
 	interface Instr<T> {
 		readonly _tag: T
 		readonly line: number
@@ -204,9 +184,9 @@ export function fromAst(ast: Ast.Stmt[]): string {
 	return text
 }
 
-function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
-	function exprMatcher(expr: Ast.Expr): Instruction[] {
-		const matcher = matchAll<Ast.Expr, Instruction[]>({
+function instructionsFromAst(ast: Ast.Stmt[]): Instruction.T[] {
+	function exprMatcher(expr: Ast.Expr): Instruction.T[] {
+		const matcher = matchAll<Ast.Expr, Instruction.T[]>({
 			Literal({value, startToken}) {
 				const {line} = startToken
 				if (typeof value === 'number') {
@@ -293,7 +273,7 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 		})
 		return matcher(expr)
 	}
-	const stmtMatcher = matchAll<Ast.Stmt, Instruction[]>({
+	const stmtMatcher = matchAll<Ast.Stmt, Instruction.T[]>({
 		Expression({expression, semicolonToken}) {
 			return exprMatcher(expression)
 		},
@@ -325,7 +305,7 @@ function instructionsFromAst(ast: Ast.Stmt[]): Instruction[] {
 	return [...instrs, new Instruction.Return(lastLine)]
 }
 
-export function genBytecode(instructions: Instruction[]): InstructionBuffer {
+export function genBytecode(instructions: Instruction.T[]): InstructionBuffer {
 	const instructionBuffer = {
 		instructions: [],
 		constants: [],
