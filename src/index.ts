@@ -4,10 +4,10 @@ import {HAS_ERROR} from './error'
 import * as fs from 'fs'
 import {Scanner} from './scanner'
 import {Parser} from './parser'
-import * as Ast from './ast'
 import {fromAst} from './backends/bytecode/instruction'
+import * as Ast from './ast'
 
-const VALID_MODES = ['--stdin', '--file']
+const VALID_MODES = ['--stdin', '--file'/*, '--replCompiler'*/]
 
 export async function main(args: string[]) {
 	const mode = args[0]
@@ -16,6 +16,11 @@ export async function main(args: string[]) {
 		console.log(`Invalid mode. Please specify one of ${VALID_MODES}`)
 		process.exit(1)
 	}
+
+	//if (mode === '--replCompiler') {
+	//	await startReplCompiler()
+	//	return
+	//}
 
 	let fileContent: string
 	if (mode === '--stdin') {
@@ -43,7 +48,7 @@ export async function main(args: string[]) {
 }
 
 function readStdin(): Promise<string> {
-	return new Promise((resolve, reject) => {
+	return new Promise(resolve => {
 		let finalString = ''
 		process.stdin.on('data', (data: Buffer) => {
 			const text = data.toString('utf8')
@@ -57,8 +62,3 @@ function readStdin(): Promise<string> {
 }
 
 main(process.argv.slice(2))
-
-
-
-
-
