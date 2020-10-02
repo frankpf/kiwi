@@ -81,8 +81,8 @@ proc run(): void =
                 testCase.expectedStdout
             else:
                 testCase.expectedStderr
-            t.styledWrite(stdout, t.fgRed, "Expected {stream} to eq(regex={testCase.expectedRegex}): {expectEq}\n".fmt)
-            t.styledWrite(stdout, t.fgRed, "              but got stdout: {stdoutText.strip}\n".fmt)
+            t.styledWrite(stdout, t.fgRed, "Expected {stream} to eq(regex={testCase.expectedRegex}): {expectEq} [len={expectEq.len}]\n".fmt)
+            t.styledWrite(stdout, t.fgRed, "              but got stdout: {stdoutText.strip} [len={stdoutText.strip.len}]\n".fmt)
             if stderrText.strip.len > 0:
                  t.styledWrite(stdout, t.fgRed, "     also got stderr: {stderrText.strip}\n".fmt)
             t.styledWrite(stdout, t.fgRed, "got following bytecode: \n")
