@@ -1,46 +1,120 @@
 {.experimental: "codeReordering".}
-from tables import toTable, `[]`, hasKey
 from types import KiwiType
 from sequtils import map, mapIt
+from math import `^`
 from strformat import fmt
-from tables import Table, `[]`, `[]=`, initTable, pairs
-from strutils import split, parseInt, splitLines, parseInt, startsWith
+from times import getTime, `-`, inMilliseconds
+from tables import Table, TableRef, newTable, `[]`, `[]=`, initTable, pairs, toTable, hasKey, `$`
+from interpreter_value import Bytecode, BytecodeVersion
+from strutils import split, parseInt, splitLines, parseInt, startsWith, contains, strip, join
 from parseutils import parseBiggestFloat
-from re import match, re, split
-from interpreter_value import ObjTag, Value, ValueTag, Obj, ObjString, createInt, createDouble, createNil, createBool, createStringVal, isStringVal, takeString, createObjString, downcast, upcast, printObjString, isNumberVal, valuesEqual, hash, isTruthy
+from osproc import startProcess, inputHandle, poUsePath, poEvalCommand
+from os import sleep
+from rdstdin import readLineFromStdin
+from re import match, re, split, find
+from interpreter_value import ObjTag, Value, ValueTag, Obj, ObjString, createInt, createDouble, createNil, createBool, createStringVal, isStringVal, takeString, createObjString, downcast, upcast, printObjString, isNumberVal, valuesEqual, hash, isTruthy, ObjFunction, newEmptyFunctionVal
 from macros import newStmtList, newIdentNode, strVal, quote, add, newStrLitNode, `[]`, error
-from utils import echoErr, kiwiPrint, kiwiPrintErr
+from utils import echoErr, kiwiPrint, kiwiPrintErr, debugMode
 
-const STACK_MAX = 256
+#iterator startRepl(self: var Interpreter, streamFilePath: string, lines: var seq[string]): int =
+#    # FIXME: we're redirecting to a file as a workaround
+#    # to a bug in stdlib's process.hasData
+#    let workingDir = ".."
+#    let process = startProcess(
+#      fmt"node dist/src/index.js --replCompiler 2>&1 > {streamFilePath}",
+#      workingDir=workingDir,
+#      options={poEvalCommand, poUsePath},
+#    )
+#    var procStdin: File
+#    discard procStdin.open(process.inputHandle, fmWrite)
+#    var replCompilerStream = open(fmt"{workingDir}/{streamFilePath}")
+#
+#    let oldBytecode = Bytecode(
+#      version: self.bytecode.version,
+#      instructions: self.bytecode.instructions,
+#      constants: self.bytecode.constants,
+#      lineNumbers: self.bytecode.lineNumbers,
+#    )
+#    let oldIc = self.ic
+#
+#    var readInput = true
+#    var prevRes: string
+#    for line in lines:
+#      procStdin.write(line & "\n")
+#    while true:
+#        if readInput:
+#          let input = readLineFromStdin("debugger> ") & "\n"
+#          if input == ".cont\n":
+#            self.updateBytecode(oldBytecode)
+#            self.ic = oldIc
+#            yield 2
+#          if input.len - 1 > 0:
+#            lines.add(input)
+#            procStdin.write(input)
+#            procStdin.write("$RESET$\n\n")
+#            procStdin.flushFile()
+#
+#        sleep(100) # Prevent race condition ¯\_(ツ)_/¯
+#        let res = replCompilerStream.readAll()
+#        if ("START INSTRUCTIONS" in res) and (res == prevRes):
+#            readInput = false
+#            continue
+#        else:
+#            readInput = true
+#        let parsed = parseTextualBytecode(res)
+#        self.mergeBytecode(parsed)
+#
+#        try:
+#          yield 1
+#        except RuntimeError as e:
+#          kiwiPrintErr e.msg
 
-type BytecodeVersion = enum V0 = 0
 
-type Bytecode = object
-    version: BytecodeVersion
-    instructions: seq[uint8]
-    constants: seq[Value]
-    lineNumbers: seq[int]
+const FRAMES_MAX = 64
+const STACK_MAX = FRAMES_MAX * (2^8)
 
-type Interpreter = object
-    bytecode: Bytecode
-    ic: int
+type CallFrame = object
+  function: ObjFunction
+  ic: int
+  firstSlotIndex: int
+
+type Interpreter* = object
+    frames: array[FRAMES_MAX, CallFrame]
+    frameCount: int
     stack: array[STACK_MAX, Value]
     stackTop: int
     heapObjects: seq[ptr Obj]
-    globals: Table[ObjString, Value]
+    globals: Table[int, Value]
     # FIXME: Expose these only in testing
     opcodes*: seq[Opcode]
     opcodeArgs*: Table[string, seq[int]]
+    # FIXME: This shouldn't be exposed
+    originalSrc*: string
+    # FIXME: This is a hack for late initalization in the REPL
+    initialized*: int
+    timePerOpcode: TableRef[Opcode, int64]
+    execPerOpcode: TableRef[Opcode, int64]
 
-proc newInterpreter*(bytecode: Bytecode): Interpreter = Interpreter(
-    bytecode: bytecode,
-    ic: 0,
-    stackTop: 0,
-    heapObjects: newSeq[ptr Obj](),
-    globals: initTable[ObjString, Value](),
-    opcodes: newSeq[Opcode](),
-    opcodeArgs: initTable[string, seq[int]](),
-)
+proc newInterpreter*(fnObj: ObjFunction): Interpreter =
+    var interp = Interpreter(
+      frameCount: 1,
+      stackTop: 0,
+      heapObjects: newSeq[ptr Obj](),
+      globals: initTable[int, Value](),
+      opcodes: newSeq[Opcode](),
+      opcodeArgs: initTable[string, seq[int]](),
+      initialized: 1,
+      timePerOpcode: newTable[Opcode, int64](),
+      execPerOpcode: newTable[Opcode, int64](),
+    )
+    var fnVal = newEmptyFunctionVal("")
+    fnVal.obj = cast[ptr Obj](unsafeAddr fnObj)
+    interp.frames[0].function = fnObj
+    interp.frames[0].ic = 0
+    interp.frames[0].firstSlotIndex = interp.stackTop
+
+    interp.push(fnVal)
+    interp
 
 proc push(self: var Interpreter, value: Value): void =
     self.stack[self.stackTop] = value
@@ -50,24 +124,62 @@ proc pop(self: var Interpreter): Value =
     self.stackTop -= 1
     self.stack[self.stackTop]
 
+proc pushPtr(self: var Interpreter, value: ptr Value): void =
+    self.stack[self.stackTop] = value[]
+    self.stackTop += 1
+
+proc popPtr(self: var Interpreter): ptr Value =
+    self.stackTop -= 1
+    self.stack[self.stackTop].addr
+
 proc pop2(self: var Interpreter): (Value, Value) =
     self.stackTop -= 2
     (self.stack[self.stackTop + 1], self.stack[self.stackTop])
 
+proc readUint8(self: var Interpreter): uint8 =
+    let frame = self.frames[self.frameCount-1].addr
+    let val = frame.function.bytecode.instructions[frame.ic]
+    frame.ic += 1
+    return val
+
+proc readUint16(self: var Interpreter): int =
+    let frame  = self.frames[self.frameCount-1].addr
+    let highBits = frame.function.bytecode.instructions[frame.ic].int16
+    let lowBits = frame.function.bytecode.instructions[frame.ic+1].int16
+    let val = int((highBits shl 8) or lowBits)
+    frame.ic += 2
+    return val
+
+proc readConstant(self: var Interpreter): Value =
+  let frame = self.frames[self.frameCount-1]
+  let offset = self.readUint8()
+  self.registerOpcodeArg(offset)
+  return frame.function.bytecode.constants[offset]
+
+proc readSlotAt(self: var Interpreter, frame: ptr CallFrame, index: int): Value =
+  return self.stack[frame.firstSlotIndex + index]
+
+proc writeSlotAt(self: var Interpreter, frame: ptr CallFrame, index: int, value: Value) =
+  self.stack[frame.firstSlotIndex + index] = value
+
 proc interpret*(self: var Interpreter): void =
-    let instructions = self.bytecode.instructions
-    let constants = self.bytecode.constants
+    var frame = self.frames[self.frameCount - 1].addr
+    var opcodeCount = 0
     while true:
-        let opcode = Opcode(instructions[self.ic])
+        let start = getTime()
+        echoErr fmt"FRAME IC = {frame.ic}"
+        let opcode = Opcode(self.readUint8())
         self.registerOpcode(opcode)
-        echoErr fmt"Interpreting opcode {opcode}"
+        echoErr fmt"Interpreting opcode {opcode} [ic={frame.ic}]"
         case opcode:
         of Opcode.LoadConstant:
-            let offset = instructions[self.ic+1]
-            self.registerOpcodeArg(offset)
-            let constant = constants[offset]
-            self.push(constant)
-            self.ic += 1
+            self.push(self.readConstant())
+            #self.registerOpcodeArg(offset)
+            #let constant = self.readConstant()
+            #let offset = instructions[self.ic+1]
+            #let constant = constants[offset]
+            #self.push(constant)
+            #self.ic += 1
         of Opcode.LoadNil:
             self.push(createNil())
         of Opcode.LoadTrue:
@@ -122,74 +234,206 @@ proc interpret*(self: var Interpreter): void =
                 self.binaryCmpOp(`<=`)
             else:
                 discard
+        of Opcode.Or:
+            let b = self.pop()
+            if b.isTruthy:
+                self.push(createBool(true))
+            else:
+                let a = self.pop()
+                self.push(createBool(a.isTruthy))
+        of Opcode.And:
+            let b = self.pop()
+            if not b.isTruthy:
+                self.push(createBool(false))
+            else:
+                let a = self.pop()
+                self.push(createBool(a.isTruthy))
         of Opcode.Eql:
             let (b, a) = self.pop2()
             self.push(createBool(valuesEqual(a, b)))
         of Opcode.Print:
-            printKiwiValue(self.pop())
+            echo printKiwiValue(self.pop())
         of Opcode.Pop:
             discard self.pop()
         of Opcode.DefineGlobal:
-            let offset = instructions[self.ic+1]
-            self.registerOpcodeArg(offset)
-            let name = downcast[ObjString](constants[offset].obj)
-            self.globals[name] = self.peek(0)
+            let constant = self.readConstant()
+            let name = downcast[ObjString](constant.obj)
+            self.globals[name.hash] = self.peek(0)
             discard self.pop()
-            self.ic += 1
+            #let offset = instructions[self.ic+1]
+            #self.registerOpcodeArg(offset)
+            #let name = downcast[ObjString](constants[offset].obj)
+            #self.globals[name.hash] = self.peek(0)
+            #discard self.pop()
+            #self.ic += 1
         of Opcode.GetGlobal:
-            let offset = instructions[self.ic+1]
-            self.registerOpcodeArg(offset)
-            let name = downcast[ObjString](constants[offset].obj)
+            let constant = self.readConstant()
+            let name = downcast[ObjString](constant.obj)
             try:
-              let value = self.globals[name]
+              let value = self.globals[name.hash]
               self.push(value)
-              self.ic += 1
             except KeyError:
-                self.runtimeError(fmt"Access to undefined global variable '{printObjString(name)}'")
+              # FIXME: I don't think this is the right message, the user isn't necessarily
+              # trying to access a global variable. It could be a local variable too
+              self.runtimeError(fmt"Access to undefined global variable '{printObjString(name)}'")
+
+            #let offset = instructions[self.ic+1]
+            #self.registerOpcodeArg(offset)
+            #let name = downcast[ObjString](constants[offset].obj)
+            #try:
+            #  let value = self.globals[name.hash]
+            #  self.push(value)
+            #  self.ic += 1
+            #except KeyError:
+            #  self.ic += 1
+            #  self.runtimeError(fmt"Access to undefined global variable '{printObjString(name)}'")
         of Opcode.SetGlobal:
-            let offset = instructions[self.ic+1]
-            self.registerOpcodeArg(offset)
-            let name = downcast[ObjString](constants[offset].obj)
-            if not self.globals.hasKey(name):
+            let constant = self.readConstant()
+            let name = downcast[ObjString](constant.obj)
+            echoErr fmt"Name: {printObjString(name)}"
+            if not self.globals.hasKey(name.hash):
+                echoErr "no global var"
                 self.runtimeError(fmt"Assignment to undefined global variable '{printObjString(name)}'")
-            self.globals[name] = self.peek(0)
+            self.globals[name.hash] = self.peek(0)
             discard self.pop()
-            self.ic += 1
+
+
+            #let offset = instructions[self.ic+1]
+            #self.registerOpcodeArg(offset)
+            #let name = downcast[ObjString](constants[offset].obj)
+            #if not self.globals.hasKey(name.hash):
+            #    self.runtimeError(fmt"Assignment to undefined global variable '{printObjString(name)}'")
+            #self.globals[name.hash] = self.peek(0)
+            #discard self.pop()
+            #self.ic += 1
         of Opcode.GetLocal:
-            let offset = instructions[self.ic+1]
+            let offset = self.readUint8()
+            self.push(self.readSlotAt(frame, int(offset)))
             self.registerOpcodeArg(offset)
-            self.push(self.stack[offset])
-            self.ic += 1
+
+            #let offset = instructions[self.ic+1]
+            #self.registerOpcodeArg(offset)
+            #self.push(self.stack[offset])
+            #self.ic += 1
         of Opcode.SetLocal:
-            let offset = instructions[self.ic+1]
+            let offset = self.readUint8()
+            self.writeSlotAt(frame, int(offset), self.peek(0))
             self.registerOpcodeArg(offset)
-            self.stack[offset] = self.peek(0)
-            self.ic += 1
+
+            #let offset = instructions[self.ic+1]
+            #self.registerOpcodeArg(offset)
+            #self.stack[offset] = self.peek(0)
+            #self.ic += 1
         of Opcode.Jump:
-          let highBits = instructions[self.ic+1]
-          let lowBits = instructions[self.ic+2]
-          let bytesToJumpOver = int((highBits shl 8) or lowBits)
-          self.registerOpcodeArg(bytesToJumpOver)
-          self.ic += bytesToJumpOver + 2
+            let bytesToJumpOver = self.readUint16()
+            if bytesToJumpOver > 0:
+              frame.ic += int(bytesToJumpOver - 1)
+            else:
+              # Backwards jump. We're at the third byte:
+              # [ Opcode.Jump ] [ high bits ] [ low bits ]
+              #                              ^ frame.ic
+              # so we need to subtract 2 from the jump offset
+              frame.ic += (bytesToJumpOver - 2)
+
+            #let highBits = instructions[self.ic+1].int16
+            #let lowBits = instructions[self.ic+2].int16
+            #let bytesToJumpOver = int((highBits shl 8) or lowBits)
+            #self.registerOpcodeArg(bytesToJumpOver)
+            #if bytesToJumpOver > 0:
+            #  # Account for jump's 2 arguments
+            #  self.ic += bytesToJumpOver + 2
+            #else:
+            #  self.ic += bytesToJumpOver
         of Opcode.JumpIfFalse:
-          let highBits = instructions[self.ic+1]
-          let lowBits = instructions[self.ic+2]
-          let bytesToJumpOver = int((highBits shl 8) or lowBits)
-          self.registerOpcodeArg(bytesToJumpOver)
-          if not self.peek(0).isTruthy:
-              self.ic += bytesToJumpOver
-          discard self.pop()
-          self.ic += 2
+            let bytesToJumpOver = self.readUint16()
+            if not self.peek(0).isTruthy:
+                echoErr fmt"Jumping over {bytesToJumpOver} bytes"
+                frame.ic += bytesToJumpOver
+            discard self.pop()
+            #let highBits = instructions[self.ic+1].int16
+            #let lowBits = instructions[self.ic+2].int16
+            #let bytesToJumpOver = int((highBits shl 8) or lowBits)
+            #self.registerOpcodeArg(bytesToJumpOver)
+            #if not self.peek(0).isTruthy:
+            #    self.ic += bytesToJumpOver
+            #discard self.pop()
+            #self.ic += 2
         of Opcode.Return:
+            let result = self.popPtr()
+
+            echoErr fmt"Return result: {printKiwiValue(result[])}"
+
+            self.frameCount -= 1
+            if self.frameCount == 0:
+              discard self.popPtr()
+              return
+
+            self.stackTop = frame.firstSlotIndex
+            self.pushPtr(result)
+
+            frame = self.frames[self.frameCount - 1].addr
             for s, v in self.globals.pairs:
               echoErr "GLOBAL INFO (K,V)-->"
-              echoErr printObjString(s)
+              echoErr "HASH: {s}"
               #printKiwiValue(v)
               echoErr "<-------------------"
-            return
-        self.ic += 1
-        echoErr fmt"Current ic: {self.ic}"
-        echoErr fmt"Current stack: {self.stack[0..<self.stackTop]}"
+        of Opcode.LoadFunction:
+            let constant = self.readConstant()
+            self.push(constant)
+        of Opcode.CallFunction:
+            let argCount = self.readUint8()
+            let fnVal = self.peek(argCount)
+            self.callValue(fnVal, int(argCount))
+            frame = self.frames[self.frameCount - 1].addr
+            discard
+        of Opcode.Debugger:
+            discard
+          #let currentLine = self.bytecode.lineNumbers[self.findLineWithError(self.ic) - 1]
+          #var lines = self.originalSrc.splitLines[0..currentLine]
+          #self.ic += 1
+          #for i in self.startRepl("debugstream.txt", lines):
+          #  if i == 2:
+          #    doIncrement = false
+          #    break
+          #  self.interpret()
+        #if doIncrement:
+        #  self.ic += 1
+        opcodeCount += 1
+        echoErr fmt"Current frame ic={frame.ic}, frameCount={self.frameCount}, stackTop={self.stackTop}, firstSlotIndex={frame.firstSlotIndex}"
+        if debugMode():
+          let stackStr = self.stack[0..<self.stackTop + 10].mapIt(it.printKiwiValue).join(" | ")
+          echoErr fmt"Current stack: {stackStr}"
+          let instructions = frame.function.bytecode.instructions.mapIt(Opcode(it))
+          echoErr fmt"Instructions: {instructions}"
+        let timeTaken = (getTime() - start).inMilliseconds
+        if not self.timePerOpcode.hasKey(opcode):
+          self.timePerOpcode[opcode] = 0
+        self.timePerOpcode[opcode] += timeTaken
+        if not self.execPerOpcode.hasKey(opcode):
+          self.execPerOpcode[opcode] = 0
+        self.execPerOpcode[opcode] += 1
+
+proc callValue(self: var Interpreter, callee: Value, argCount: int): void =
+  case callee.kind:
+  of ValueTag.Object:
+    case callee.obj.tag:
+    of ObjTag.Function:
+      let funcObj = downcast[ObjFunction](callee.obj)
+      self.call(funcObj, argCount)
+      return
+    else:
+      discard
+  else:
+    discard
+
+  self.runtimeError("Can only call functions and classes")
+
+proc call(self: var Interpreter, funcObj: ObjFunction, argCount: int): void =
+  var frame = self.frames[self.frameCount].addr
+  self.frameCount += 1
+  frame.function = funcObj
+  frame.ic = 0
+  frame.firstSlotIndex = self.stackTop - argCount - 1
 
 # FIXME: Export only when testing
 type Opcode* {.pure.} = enum
@@ -205,10 +449,11 @@ type Opcode* {.pure.} = enum
     # Binary operations
     Add, Sub, Mul, Div,
     # Boolean binary ops,
+    Or, And,
     Eql,
     Ge, Geq, Le, Leq,
     # Misc
-    Return,
+    Return, Debugger,
     # Variables
     DefineGlobal, GetGlobal, SetGlobal,
     GetLocal, SetLocal,
@@ -217,35 +462,76 @@ type Opcode* {.pure.} = enum
     Pop,
     # Control flow
     Jump, JumpIfFalse,
+    # Functions,
+    LoadFunction, CallFunction,
 
+type ParseFunctionDefResult = tuple[name: string, arity: int, bytecode: Bytecode]
+
+proc parseFunctionDef(lines: seq[string]): ParseFunctionDefResult =
+  let instructionsStart = 1
+  let fnInfo = lines[instructionsStart].split("START FUNCTION ")[1].split(" ")
+  let name = fnInfo[0]
+  let arity = fnInfo[1].parseInt
+  var instructionsText = lines[instructionsStart..<lines.len]
+  instructionsText = instructionsText[1..<instructionsText.find("END")]
+
+  let constantsStart = lines.find("START CONSTANTS")
+  var constantsText = lines[constantsStart..<lines.len]
+  constantsText = constantsText[1..<constantsText.find("END")]
+
+  let linenumStart = lines.find("START LINENUM")
+  var linenumText = lines[linenumStart..<lines.len]
+  linenumText = linenumText[1..<linenumText.find("END")]
+
+  let instructions = instructionsText.parseInstructions
+  let constants = constantsText.mapIt(parseConstant(it))
+  let linenums = linenumText.mapIt(it.parseInt)
+  
+  let bytecode = Bytecode(version: BytecodeVersion(0), instructions: instructions, constants: constants, lineNumbers: linenums) 
+  echoErr fmt"Parsed {instructionsText.len} instructions, {constantsText.len} constants and {linenumText.len} line numbers"
+  return (name: name, arity: arity, bytecode: bytecode)
 
 # FIXME: Can't parse multiline strings
-proc parseTextualBytecode*(bytecodeText: string): Bytecode =
-    let lines = bytecodeText.splitLines
-    let versionText = lines[0].split("VERSION ")[1]
-    let version = BytecodeVersion(versionText.parseInt8)
+proc parseTextualBytecode*(bytecodeText: string): ObjFunction =
+    let fragments = bytecodeText.split("---")
 
+    let header = fragments[0].splitLines
+    let versionText = header[0].split("VERSION ")[1]
+    let version = BytecodeVersion(versionText.parseInt8)
     echoErr fmt"Parsed version: {version}"
 
-    let instructionsStart = lines.find("START INSTRUCTIONS")
-    var instructionsText = lines[instructionsStart..<lines.len]
-    instructionsText = instructionsText[1..<instructionsText.find("END")]
+    let functionDefs = fragments[1..<fragments.len]
+    var functionToBytecodeMap = newTable[string, Bytecode]()
+    var functionToArityMap = newTable[string, int]()
 
-    let constantsStart = lines.find("START CONSTANTS")
-    var constantsText = lines[constantsStart..<lines.len]
-    constantsText = constantsText[1..<constantsText.find("END")]
+    for def in functionDefs:
+      let lines = def.splitLines.mapIt(it.strip)
+      let functionDefResult = parseFunctionDef(lines)
 
-    let linenumStart = lines.find("START LINENUM")
-    var linenumText = lines[linenumStart..<lines.len]
-    linenumText = linenumText[1..<linenumText.find("END")]
+      let name = functionDefResult.name
+      let arity = functionDefResult.arity
+      var bytecode = functionDefResult.bytecode
 
-    let instructions = instructionsText.parseInstructions
-    let constants = constantsText.mapIt(parseConstant(it))
-    let linenums = linenumText.mapIt(it.parseInt)
+      functionToBytecodeMap[name] = functionDefResult.bytecode
+      functionToArityMap[name] = arity
 
-    echoErr fmt"Parsed {instructionsText.len} instructions, {constantsText.len} constants and {linenumText.len} line numbers"
+    # Patch empty function constants
+    for functionName, bytecode in functionToArityMap.pairs:
+      let bytecode = functionToBytecodeMap[functionName]
+      for i in 0..<bytecode.constants.len:
+        var constant = bytecode.constants[i].unsafeAddr
+        if constant.kind == ValueTag.Object and constant.obj.tag == ObjTag.Function:
+          var fn = cast[ptr ObjFunction](constant.obj)
+          let toPatch = printObjString(fn[].name[])
+          fn.bytecode = functionToBytecodeMap[toPatch]
+          fn.arity = functionToArityMap[toPatch]
 
-    Bytecode(version: version, instructions: instructions, constants: constants, lineNumbers: linenums) 
+    var topLevel = newEmptyFunctionVal("")
+    var fn = downcast[ObjFunction](topLevel.obj)
+    fn.bytecode = functionToBytecodeMap["toplevel"]
+    fn.arity = 0
+
+    return fn
 
 const textToOpcode = {
     "load_nil": Opcode.LoadNil,
@@ -253,6 +539,8 @@ const textToOpcode = {
     "load_false": Opcode.LoadFalse,
     "return": Opcode.Return,
     "negate": Opcode.Negate,
+    "Or": Opcode.Or,
+    "And": Opcode.And,
     "add": Opcode.Add,
     "sub": Opcode.Sub,
     "div": Opcode.Div,
@@ -265,15 +553,18 @@ const textToOpcode = {
     "print": Opcode.Print,
     "pop": Opcode.Pop,
     "not": Opcode.Not,
+    "Debugger": Opcode.Debugger,
 }.toTable
 
 const opcodesWithOffset = {
+    "load_function": Opcode.LoadFunction,
     "load_constant": Opcode.LoadConstant,
     "define_global": Opcode.DefineGlobal,
     "get_global": Opcode.GetGlobal,
     "set_global": Opcode.SetGlobal,
     "get_local": Opcode.GetLocal,
     "set_local": Opcode.SetLocal,
+    "call": Opcode.CallFunction,
 }.toTable
 
 type BytecodeParseError = object of Exception
@@ -293,6 +584,13 @@ proc parseConstant(text: string): Value =
         let numDigits = lenStr.len
         let str = text[2 + numDigits..<2+numDigits+strLen]
         return createStringVal(str)
+    if text[0] == 'f':
+        let lenStr = text[1..<text.find(' ')]
+        let strLen = lenStr.parseInt
+        let numDigits = lenStr.len
+        let str = text[2 + numDigits..<2+numDigits+strLen]
+        # We create an empty function that will be patched later
+        return newEmptyFunctionVal(str)
 
     raise newException(BytecodeParseError, fmt"Error parsing constant {text}")
 
@@ -300,17 +598,17 @@ proc parseInstructions(lines: seq[string]): seq[uint8] =
     var result: seq[uint8]
     var cont = false
     for instruction in lines:
-        if instruction.match(re"jump_if_false|jump \d"):
+        if instruction.match(re"jump_if_false|jump -?\d"):
           let opcode = if instruction.startsWith("jump_if_false"):
             Opcode.JumpIfFalse
           else:
             Opcode.Jump
           result.add(opcode.uint8)
-          let bytesToJumpOver = instruction.split(re"jump.* ")[1].parseInt8
-          let highBits = (bytesToJumpOver shr 8) and 0xff
-          let lowBits = (bytesToJumpOver) and 0xff
-          result.add(highBits)
-          result.add(lowBits)
+          let bytesToJumpOver = instruction.split(re"jump.* ")[1].parseInt
+          let highBits = ((bytesToJumpOver shr 8) and 0xff).uint8
+          let lowBits = ((bytesToJumpOver) and 0xff).uint8
+          result.add(highBits.uint8)
+          result.add(lowBits.uint8)
 
           continue
 
@@ -341,21 +639,26 @@ proc parseInt8(s: string): uint8 =
     s.parseInt.uint8
 
 
-proc printKiwiValue(value: Value): void =
+proc printKiwiValue*(value: Value): string =
     case value.kind:
     of Nil:
-        kiwiPrint "nil"
+        return "nil"
     of Bool:
         let str = if value.boolVal: "true" else: "false"
-        kiwiPrint fmt"{str}"
+        return str
     of Int:
-        kiwiPrint fmt"{value.intVal}"
+        return fmt"{value.intVal}"
     of Double:
-        kiwiPrint fmt"{value.doubleVal}"
+        return fmt"{value.doubleVal}"
     of Object:
-        if value.isStringVal:
+        case value.obj.tag:
+        of ObjTag.String:
             let obj = downcast[ObjString](value.obj)
-            echo printObjString(obj)
+            let str = printObjString(obj)
+            return str
+        of ObjTag.Function:
+            let fn = downcast[ObjFunction](value.obj)
+            return fmt"[Function: {printObjString(fn.name[])}]"
 
 proc printf(formatstr: cstring) {.importc: "printf", varargs,
                                   header: "<stdio.h>".}
@@ -411,8 +714,9 @@ macro binaryCmpOp(self: var Interpreter, op: untyped): untyped =
 
 type RuntimeError* = object of Exception 
 proc runtimeError(self: var Interpreter, msg: string): void =
-    let opcodeLineIndex = self.findLineWithError(self.ic)
-    let line = self.bytecode.lineNumbers[opcodeLineIndex]
+    let frame = self.frames[self.frameCount]
+    let line = self.findLineWithError(frame.ic)
+    #let line = self.bytecode.lineNumbers[opcodeLineIndex]
     let errorMsg = fmt"Error in line {line}: {msg}"
     self.resetStack
     raise newException(RuntimeError, errorMsg)
@@ -421,25 +725,29 @@ proc runtimeError(self: var Interpreter, msg: string): void =
 # because we only call it when there's an error, but we should
 # still find a more efficient scheme for reporting line numbers
 # in runtime errors.
+# Easy way would be to just increment opcode starts in interpreter 
 proc findLineWithError(self: var Interpreter, maxIc: int): int =
-  # We're going to go through all the instructions while counting the 
-  # number of opcodes and ignoring other chunks (e.g. offsets).
-  var lastInstructionStartIndex = 0
-  var skipNext = false
-  for i, instr in self.bytecode.instructions.pairs:
-    if i >= maxIc:
-      break
-    if skipNext:
-      skipNext = false
-      continue
-    let opcode = Opcode(instr)
-    case opcode:
-      of Opcode.LoadConstant, Opcode.DefineGlobal, Opcode.GetGlobal, Opcode.SetGlobal:
-        skipNext = true
-      else:
-        discard
-    lastInstructionStartIndex += 1
-  return lastInstructionStartIndex
+  let frame = self.frames[self.frameCount - 1]
+  let slot = frame.ic - frame.firstSlotIndex - 1
+  return frame.function.bytecode.lineNumbers[slot]
+  ## We're going to go through all the instructions while counting the 
+  ## number of opcodes and ignoring other chunks (e.g. offsets).
+  #var lastInstructionStartIndex = 0
+  #var skipNext = false
+  #for i, instr in self.bytecode.instructions.pairs:
+  #  if i >= maxIc:
+  #    break
+  #  if skipNext:
+  #    skipNext = false
+  #    continue
+  #  let opcode = Opcode(instr)
+  #  case opcode:
+  #    of Opcode.LoadConstant, Opcode.DefineGlobal, Opcode.GetGlobal, Opcode.SetGlobal:
+  #      skipNext = true
+  #    else:
+  #      discard
+  #  lastInstructionStartIndex += 1
+  #return lastInstructionStartIndex
 
 proc resetStack(self: var Interpreter): void =
     self.stackTop = 0
@@ -493,14 +801,21 @@ proc cleanup(obj: ptr Obj): void =
       #dealloc(obj)
       discard reallocate(str.chars, sizeof(uint8).uint64 * (str.length + 1), 0)
       discard reallocate(obj, sizeof(ObjString).uint64, 0)
+    of ObjTag.Function:
+      # let fn = downcast[ObjFunction](obj)
+      # Nothing to do here, everything in ObjFunction is managed by Nim's GC
+      discard
+
 
 proc cleanup*(self: var Interpreter): void =
+  echoErr fmt"timePerOpcode: {self.timePerOpcode}"
+  echoErr fmt"execPerOpcode: {self.execPerOpcode}"
   for obj in self.heapObjects:
     obj.cleanup
 
-  for val in self.bytecode.constants:
-    if val.kind == ValueTag.Object:
-      val.obj.cleanup
+  #for val in self.bytecode.constants:
+  #  if val.kind == ValueTag.Object:
+  #    val.obj.cleanup
 
   return
 
@@ -509,6 +824,7 @@ proc registerOpcode*(self: var Interpreter, opcode: Opcode): void =
   self.opcodes.add(opcode)
 
 proc registerOpcodeArg*(self: var Interpreter, arg: uint8): void =
+  echoErr fmt"Opcode arg: {arg}"
   self.registerOpcodeArg(arg.int)
 
 proc registerOpcodeArg*(self: var Interpreter, arg: int): void =
@@ -518,5 +834,16 @@ proc registerOpcodeArg*(self: var Interpreter, arg: int): void =
       return
   self.opcodeArgs[key].add(arg)
 
+
 func peek(self: Interpreter, dist: Natural): Value =
     self.stack[self.stackTop - dist - 1]
+
+#proc updateBytecode*(self: var Interpreter, newBytecode: Bytecode): void =
+#  self.bytecode.instructions = newBytecode.instructions
+#  self.bytecode.constants = newBytecode.constants
+#  self.bytecode.lineNumbers = newBytecode.lineNumbers
+#
+#proc mergeBytecode*(self: var Interpreter, newBytecode: Bytecode): void =
+#  self.bytecode.instructions = newBytecode.instructions
+#  self.bytecode.constants = newBytecode.constants
+#  self.bytecode.lineNumbers = newBytecode.lineNumbers

@@ -1,8 +1,16 @@
 {.experimental: "codeReordering".}
 import strformat
-type ObjTag* {.pure.} = enum String
 from hashes import Hash, hashData
 
+type BytecodeVersion* = enum V0 = 0
+
+type Bytecode* = object
+    version*: BytecodeVersion
+    instructions*: seq[uint8]
+    constants*: seq[Value]
+    lineNumbers*: seq[int]
+
+type ObjTag* {.pure.} = enum String, Function
 type Obj* = object
     tag*: ObjTag
 
@@ -10,6 +18,13 @@ type ObjString* = object
     obj*: Obj
     length*: uint64
     chars*: ptr uint8
+
+type ObjFunction* = object
+    obj*: Obj
+    arity*: int
+    bytecode*: Bytecode
+    name*: ptr ObjString
+
 
 proc hash*(s: ObjString): Hash =
     hashData(s.chars, s.length.int)
@@ -42,6 +57,28 @@ proc createStringVal*(obj: ptr ObjString): Value =
         obj: cast[ptr Obj](obj),
     )
 
+proc newEmptyFunctionObj(name: string): ObjFunction =
+  var fn = ObjFunction()
+  fn.arity = 0
+  fn.name = createObjString(name)
+  fn.bytecode = Bytecode()
+  return fn
+
+proc newEmptyFunctionVal*(name: string): Value =
+  let fnObj = createObjFunction(name, 0)
+  Value(
+    kind: ValueTag.Object,
+    obj: cast[ptr Obj](fnObj)
+  )
+
+proc createObjFunction*(name: string, arity: int): ptr ObjFunction =
+  var data = cast[ptr ObjFunction](alloc0(sizeof ObjFunction))
+  data.obj = createObj(ObjTag.Function)
+  data.name = createObjString(name)
+  data.arity = arity
+
+  data
+
 proc isStringVal*(v: Value): bool =
     v.kind == ValueTag.Object and v.obj.tag == ObjTag.String
 
@@ -51,7 +88,7 @@ proc isNumberVal*(v: Value): bool =
 proc downcast*[T](objPtr: ptr Obj): T =
   cast[ptr T](objPtr)[]
   
-proc upcast*[T](objptr: ptr T): Obj =
+proc upcast*[T](objPtr: ptr T): Obj =
   cast[ptr Obj](objPtr)[]
 
 proc createObj(tag: ObjTag): Obj =
@@ -64,13 +101,15 @@ proc createObjString*(s: string): ptr ObjString =
 
     # We need to make our own copy of the underlying characters
     # so that nim's GC freeing `s` won't affect the VM string.
-    let chars = cast[ptr uint8](alloc0(data.length))
-    copyMem(chars, unsafeAddr s[0], data.length)
+    if s.len > 0:
+      let chars = cast[ptr uint8](alloc0(data.length))
+      copyMem(chars, unsafeAddr s[0], data.length)
 
-    data.chars = chars
+      data.chars = chars
+    else:
+      data.chars = nil
 
     data
-
 
 proc createObjString*(chars: ptr uint8, length: uint64): ptr ObjString =
     var data = cast[ptr ObjString](alloc0(sizeof ObjString))
