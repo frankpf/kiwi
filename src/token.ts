@@ -47,6 +47,7 @@ export enum TokenType {
 	Nil = 'Nil',
 	Let = 'Let',
 	Print = 'Print', // FIXME: print should be a function
+	Debugger = 'Debugger',
 
 	// Special tokens
 	Eof = 'Eof',
