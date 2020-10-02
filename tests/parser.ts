@@ -58,19 +58,6 @@ function testParser() {
 		]
 	)
 
-	const ast = parse(
-		`let a = 2 > 1;
-		let b = 1 > 2;
-		if (a) {
-			print "inside if";
-		} else if (b) {
-			print "inside y";
-		} else {
-			print "in else";
-		};`
-	)
-	debugger;
-
 	assert.deepEqual(
 		parse(
 			`let a = 2 > 1;
@@ -138,6 +125,30 @@ function testParser() {
 					),
 				),
 				new Token(TokenType.Semicolon, ';', null, 9),
+			)
+		]
+	)
+
+	assert.deepEqual(
+		parse(
+			`let a = fun abc(x, y) {
+				print "hi";
+			};`
+		),
+		[
+			new Ast.Stmt.LetDeclaration(
+				ident("a", 1),
+				new Ast.Expr.Function(
+					ident("abc", 1),
+					[ident("x", 1), ident("y", 1)],
+					[
+						new Ast.Stmt.Print(
+							litExpr("hi", 2),
+							new Token(TokenType.Print, 'print', null, 2)
+						)
+					],
+					new Token(TokenType.Fun, 'fun', null, 1),
+				)
 			)
 		]
 	)
