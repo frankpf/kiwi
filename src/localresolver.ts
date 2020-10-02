@@ -1,22 +1,28 @@
-import {matchAll, matchPartial} from './match'
-import * as Ast from './ast'
+import {debug} from './debug'
 import {Token} from './token'
 import {error} from './error'
 import {Instruction} from './backends/bytecode/instruction'
 
-
 const UINT8_COUNT= 2**8
 
+export class Local {
+	constructor(readonly name: string, readonly depth: number, public initialized = false) {}
+}
+
 export class Resolver {
+	static last = 0
+	private id: number
 	locals = [] as Local[]
-	// FIXME: I don't think I need this, I can just use .length and .push
-	localCount = 0
+	localCount = 0 // FIXME: I don't think I need this, I can just use .length, .push and .pop
 	scopeDepth = 0
-	constructor() {}
+	constructor() {
+		this.id = Resolver.last++
+	}
 	beginScope() {
 		this.scopeDepth++
 	}
 	markInitialized() {
+		debug(`marking at ${this.localCount-1}`,this.locals)
 		this.locals[this.localCount - 1].initialized = true
 	}
 	endScope(): Instruction.T[] {
@@ -40,10 +46,12 @@ export class Resolver {
 		return this.scopeDepth > 0
 	}
 	declareVariable(identifier: Token) {
+		debug(`declareVariable[${this.id}]: depth=${this.scopeDepth} declaring ${identifier.lexeme}`)
 		if (!this.inLocalScope()) {
 			// Globals don't make use of the resolver since their
 			// declaration is explicit in the bytecode.
 			// i.e. the resolver doesn't keep track of globals
+			debug(`declareVariable[${this.id}]: Not in local scope for ${identifier.lexeme}!`)
 			return
 		}
 
@@ -58,10 +66,11 @@ export class Resolver {
 			// FIXME: we could refactor this to create a Local before the loop
 			// and use l1.equals(l2) instead of comparing lexemes.
 			// Some overhead but it's cleaner...I think?
-			if (local.name.lexeme === identifier.lexeme) {
+			if (local.name === identifier.lexeme) {
 				error(identifier, 'Variable with this name already declared in this scope')
 			}
 		}
+		debug(`declareVariable[${this.id}]: Adding local ${identifier.lexeme}`)
 		this.addLocal(identifier)
 	}
 
@@ -72,15 +81,18 @@ export class Resolver {
 			return
 		}
 
-		const local = new Local(identifier, this.scopeDepth)
+		const local = new Local(identifier.lexeme, this.scopeDepth)
 		// FIXME: lol this is just a push
 		this.locals[this.localCount++] = local
 	}
 
 	resolveLocal(identifier: Token): number | null {
+		debug(`resolveLocal[${this.id}]: resolving `, identifier)
+		debug(`resolveLocal[${this.id}]: locs`, this.locals)
 		for (let i = this.localCount - 1; i >= 0; i--) {
 			const local = this.locals[i]
-			if (local.name.lexeme === identifier.lexeme) {
+			debug(`Comparing ${local.name} to ${identifier.lexeme}`)
+			if (local.name === identifier.lexeme) {
 				if (!local.initialized) {
 					// FIXME: We need error synchronization in the resolver/instruction generator too oops
 					error(identifier, "Cannot read local variable in its own initiializer")
@@ -93,6 +105,3 @@ export class Resolver {
 	}
 }
 
-export class Local {
-	constructor(readonly name: Token, readonly depth: number, public initialized = false) {}
-}
