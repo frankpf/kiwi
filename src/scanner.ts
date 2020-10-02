@@ -15,6 +15,7 @@ export class Scanner {
 		'nil': TokenType.Nil,
 		'let': TokenType.Let,
 		'print': TokenType.Print,
+		'debugger': TokenType.Debugger,
 	}
 
 	private constructor(
