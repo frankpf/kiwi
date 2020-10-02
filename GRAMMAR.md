@@ -5,27 +5,34 @@ statement -> expression_stmt
            | print_stmt
            | let_decl_stmt 
            | assignment_stmt
-           | while_stmt .
+           | while_stmt
+	   | debuger_stmt .
 
 expression_stmt -> expression ";" .
 print_stmt      -> "print" expression ";" .
-let_decl_stmt   -> "let" IDENTIFIER ( "=" expr )? ";" .
-assignment_stmt -> IDENTIFIER "=" expr ";" .
+debugger_stmt   -> "debugger" ";".
+let_decl_stmt   -> "let" IDENTIFIER ( "=" expression )? ";" .
+assignment_stmt -> IDENTIFIER "=" expression ";" .
 while_stmt      -> "while" expression block_expr
 
-
+function_expr -> "function" IDENTIFIER "(" paramList? ") "{" statement* "}" .
+paramList     -> IDENTIFIER ( "," IDENTIFIER )* .
 block_expr -> "{" statement* "}" .
 if_expr    -> "if" expression block_expr else_tail? .
 else_tail  -> "else" (if | block_expr) .
 
 
-expression        -> equality ;
+expression        -> function_expr | logic_or ;
+logic_or          -> logic_and ( "||" logic_and )* .
+logic_and         -> equality ( "&&" equality )* .
 equality          -> comparison ( ( "!=" | "==" ) comparison )* .
 comparison        -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* .
 addition          -> multiplication ( ( "-" | "+" ) multiplication )* .
 multiplication    -> unary ( ( "/" | "*" ) unary )* .
 unary             -> ( "!" | "-" ) unary
-                   | primary .
+                   | call .
+call              -> primary ( "(" arguments? ") )* .
+arguments         -> expression ( "," expression )* .
 primary           -> NUMBER | STRING | IDENTIFIER
                    | "false" | "true" | "nil"
                    | "(" expression ")"
