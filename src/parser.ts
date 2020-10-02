@@ -34,6 +34,10 @@ export class Parser {
 
 	private statement(): Ast.Stmt | null {
 		try {
+			if (this.match(TokenType.Debugger)) {
+				return this.finishDebuggerStatement(this.previous())
+			}
+
 			if (this.match(TokenType.Print)) {
 				return this.finishPrintStatement(this.previous())
 			}
@@ -46,6 +50,10 @@ export class Parser {
 				return this.finishWhileStatement()
 			}
 
+			if (this.match(TokenType.Return)) {
+				return this.finishReturnStatement(this.previous())
+			}
+
 			return this.assignmentOrExpressionStatement()
 		} catch (err) {
 			if (err instanceof ParseError) {
@@ -56,8 +64,28 @@ export class Parser {
 		}
 	}
 
+	private finishReturnStatement(returnToken: Token): Ast.Stmt.Return {
+		if (this.match(TokenType.Semicolon)) {
+			return new Ast.Stmt.Return(
+				new Ast.Expr.Literal(
+					null,
+					new Token(TokenType.Nil, 'nil', null, returnToken.line),
+				)
+			)
+		} else {
+			const expr = this.expression()
+			this.consume(TokenType.Semicolon, 'Expected ";" after return value')
+			return new Ast.Stmt.Return(expr)
+		}
+	}
+
+	private finishDebuggerStatement(debuggerToken: Token): Ast.Stmt.Debugger {
+		this.consume(TokenType.Semicolon, 'Expected ";" after debugger statement')
+		return new Ast.Stmt.Debugger(debuggerToken)
+	}
+
 	private assignmentOrExpressionStatement(): Ast.Stmt.Assignment | Ast.Stmt.Expression {
-		const expr = this.equality()
+		const expr = this.expression()
 
 		if (this.match(TokenType.Equal)) {
 			const equals = this.previous()
@@ -108,7 +136,61 @@ export class Parser {
 	*/
 
 	private expression(): Ast.Expr {
-		return this.equality()
+		if (this.match(TokenType.Fun)) {
+			return this.finishFunctionExpression(this.previous(), 'function')
+		}
+		return this.logicOr()
+	}
+
+	private finishFunctionExpression(funcToken: Token, kind: 'function' | 'class method') {
+		// TODO: Make this optional
+		const identifier = this.consume(TokenType.Identifier, `Expected ${kind} name`)
+		this.consume(TokenType.OpenParen, `Expected "(" after ${kind} name`)
+		const paramList = [] as Token[]
+		if (this.match(TokenType.Identifier)) {
+			const firstParam = this.previous()
+			paramList.push(firstParam)
+			while (this.match(TokenType.Comma)) {
+				const param = this.consume(TokenType.Identifier, `Expected parameter name after comma in parameter list for ${identifier.lexeme} ${kind}`)
+				paramList.push(param)
+			}
+		}
+		this.consume(TokenType.CloseParen, `Expected ")" after ${identifier.lexeme} ${kind} parameter list`)
+		this.consume(TokenType.OpenBrace, `Expected "{" before ${identifier.lexeme} ${kind} body`)
+		const {statements} = this.finishBlockExpression(this.previous())
+		const lastStmt = statements[statements.length-1]
+		let returnStmt: Ast.Stmt.Return
+		if (!(lastStmt instanceof Ast.Stmt.Return)) {
+			returnStmt = new Ast.Stmt.Return(
+				new Ast.Expr.Literal(
+					null,
+					new Token(
+						TokenType.Nil,
+						'nil',
+						null,
+						-1 // FIXME: emit proper line number
+					)
+				)
+			)
+		} else {
+			statements.pop()
+			returnStmt = lastStmt
+		}
+		return new Ast.Expr.Function(identifier, paramList, statements, funcToken, returnStmt)
+	}
+
+	private logicOr(): Ast.Expr {
+		// logic_or -> logic_and ( "&&" logic_and )* .
+		const op = this.logicAnd.bind(this)
+		const types = [TokenType.Or]
+		return this.leftAssocBinOp(op, types)
+	}
+
+	private logicAnd(): Ast.Expr {
+		// logic_and -> equality ( "&&" equality )* .
+		const op = this.equality.bind(this)
+		const types = [TokenType.And]
+		return this.leftAssocBinOp(op, types)
 	}
 
 	private equality(): Ast.Expr {
@@ -144,7 +226,33 @@ export class Parser {
 			return new Ast.Expr.Unary(operator, right)
 		}
 
-		return this.primary()
+		return this.call()
+	}
+
+	private call(): Ast.Expr {
+		let expr = this.primary()
+
+		while (true) {
+			if (this.match(TokenType.OpenParen)) {
+				expr = this.finishCall(expr)
+			} else {
+				break
+			}
+		}
+
+		return expr
+	}
+
+	private finishCall(callee: Ast.Expr): Ast.Expr.Call {
+		const args = [] as Ast.Expr[]
+		if (!this.check(TokenType.CloseParen)) {
+			do {
+				args.push(this.expression())
+			} while (this.match(TokenType.Comma))
+		}
+		const paren = this.consume(TokenType.CloseParen, 'Expected "," after arguments.')
+
+		return new Ast.Expr.Call(callee, args, paren)
 	}
 
 	private primary(): Ast.Expr {
@@ -217,7 +325,8 @@ export class Parser {
 				statements.push(statement)
 			}
 		}
-		throw new Error('wat')
+		// FIXME: Better error here
+		throw new Error('Block not finished')
 	}
 
 	private leftAssocBinOp(operation: Lazy<Ast.Expr>, types: TokenType[]): Ast.Expr {
