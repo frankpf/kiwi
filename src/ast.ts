@@ -1,7 +1,7 @@
 import {Token} from './token'
 import {KiwiType} from './types'
 
-export type Expr = Expr.Literal | Expr.Unary | Expr.Binary | Expr.Grouping | Expr.LetAccess | Expr.Block | Expr.If
+export type Expr = Expr.Literal | Expr.Unary | Expr.Binary | Expr.Grouping | Expr.LetAccess | Expr.Block | Expr.If | Expr.Function | Expr.Call
 
 export namespace Expr {
 	export class Literal {
@@ -51,12 +51,24 @@ export namespace Expr {
 		) {}
 		get startToken(): Token { return this.condition.startToken }
 	}
+
+	export class Function {
+		readonly _tag = 'Function'
+		constructor(readonly name: Token, readonly params: Token[], readonly body: Stmt[], readonly functionToken: Token, readonly returnStmt: Stmt.Return) {}
+		get startToken() { return this.functionToken }
+	}
+
+	export class Call {
+		readonly _tag = 'Call'
+		constructor(readonly callee: Expr, readonly args: Expr[], readonly closeParenToken: Token) {}
+		get startToken() { return this.closeParenToken } // FIXME: should this be the identifier called?
+	}
 }
 
 /*=================
  Statements
  ==================*/
-export type Stmt = Stmt.Expression | Stmt.Print | Stmt.LetDeclaration | Stmt.Assignment | Stmt.While
+export type Stmt = Stmt.Expression | Stmt.Print | Stmt.LetDeclaration | Stmt.Assignment | Stmt.While | Stmt.Debugger | Stmt.Return
 
 export namespace Stmt {
 	export class Expression {
@@ -69,6 +81,12 @@ export namespace Stmt {
 		static readonly uri = 'Print'
 		readonly _tag = Print.uri
 		constructor(readonly expression: Expr, readonly printToken: Token) {}
+	}
+
+	export class Debugger {
+		static readonly uri = 'Debugger'
+		readonly _tag = Debugger.uri
+		constructor(readonly debuggerToken: Token) {}
 	}
 
 	export class LetDeclaration {
@@ -87,6 +105,12 @@ export namespace Stmt {
 		static readonly uri = 'While'
 		readonly _tag = While.uri
 		constructor(readonly condition: Expr, readonly block: Expr.Block) {}
+	}
+
+	export class Return {
+		static readonly uri = 'Return'
+		readonly _tag = Return.uri
+		constructor(readonly expression: Expr) {}
 	}
 }
 
