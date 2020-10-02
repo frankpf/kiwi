@@ -1,11 +1,11 @@
 from os import commandLineParams
 from sequtils import anyIt
 
-proc debugMode(): bool = commandLineParams().anyIt(it == "--debug")
+proc debugMode*(): bool = commandLineParams().anyIt(it == "--debug")
 
-proc echoErr*(msg: string) =
+template echoErr*(msg: string) =
     if debugMode():
-        stderr.write(msg & "\n")
+      stderr.write("[kiwi] " & msg & "\n")
 
 proc kiwiPrint*(msg: string) =
     echo msg
