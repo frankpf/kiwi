@@ -159,6 +159,8 @@ export class Parser {
 		this.consume(TokenType.CloseParen, `Expected ")" after ${identifier.lexeme} ${kind} parameter list`)
 		this.consume(TokenType.OpenBrace, `Expected "{" before ${identifier.lexeme} ${kind} body`)
 		const {statements} = this.finishBlockExpression(this.previous())
+
+		// Desugar function return
 		const lastStmt = statements[statements.length-1]
 		let returnStmt: Ast.Stmt.Return
 		if (lastStmt instanceof Ast.Stmt.Return) {
