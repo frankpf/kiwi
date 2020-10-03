@@ -237,11 +237,11 @@ proc interpret*(self: var Interpreter): void =
                 self.push(b)
         of Opcode.And:
             let b = self.pop()
-            if not b.isTruthy:
-                self.push(createBool(false))
+            let a = self.pop()
+            if not a.isTruthy:
+                self.push(a)
             else:
-                let a = self.pop()
-                self.push(createBool(a.isTruthy))
+                self.push(b)
         of Opcode.Eql:
             let (b, a) = self.pop2()
             self.push(createBool(valuesEqual(a, b)))
