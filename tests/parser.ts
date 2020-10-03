@@ -1,3 +1,5 @@
+import 'source-map-support/register'
+
 import {strict as assert} from 'assert'
 import {Token, TokenType} from '../src/token'
 import * as Ast from '../src/ast'
@@ -7,7 +9,7 @@ import {parse, ident, litExpr} from './parser_helpers'
 function testParser() {
 	assert.deepEqual(
 		parse(`while true {
-			print 1 + 2 + 3;
+			print 1 + 2 + 3
 		}`),
 		[
 			new Ast.Stmt.While(
@@ -35,8 +37,8 @@ function testParser() {
 
 	assert.deepEqual(
 		parse(
-			`let a = 500 / 2;
-			a = a + 100;`
+			`let a = 500 / 2
+			a = a + 100`
 		),
 		[
 			new Ast.Stmt.LetDeclaration(
@@ -60,15 +62,15 @@ function testParser() {
 
 	assert.deepEqual(
 		parse(
-			`let a = 2 > 1;
-			let b = (1 > 2);
+			`let a = 2 > 1
+			let b = (1 > 2)
 			if a {
-				print "if";
+				print "if"
 			} else if b {
-				print "elseif";
+				print "elseif"
 			} else {
-				print "else";
-			};`
+				print "else"
+			}`
 		),
 		[
 			new Ast.Stmt.LetDeclaration(
@@ -132,8 +134,8 @@ function testParser() {
 	assert.deepEqual(
 		parse(
 			`let a = fun abc(x, y) {
-				print "hi";
-			};`
+				print "hi"
+			}`
 		),
 		[
 			new Ast.Stmt.LetDeclaration(
@@ -148,6 +150,9 @@ function testParser() {
 						)
 					],
 					new Token(TokenType.Fun, 'fun', null, 1),
+					new Ast.Stmt.Return(
+						litExpr(null, -1),
+					)
 				)
 			)
 		]

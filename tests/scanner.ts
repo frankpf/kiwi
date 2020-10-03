@@ -1,30 +1,59 @@
 // TODO
+import 'source-map-support/register'
+
 import {strict as assert} from 'assert'
 import {Token, TokenType} from '../src/token'
 import {Scanner} from '../src/scanner'
 
 function testScanner() {
     assert.deepEqual(
-        Scanner.scanText(`1 +
-                         2 +
-                         3
-        ;
-        `),
+        Scanner.scanText(
+`call(1)
+	.call(2)
+	.call(3)
+`),
+        [
+            new Token(TokenType.Identifier, 'call', null, 1),
+            new Token(TokenType.OpenParen, '(', null, 1),
+            new Token(TokenType.IntegerLit, '1', 1, 1),
+            new Token(TokenType.CloseParen, ')', null, 1),
+
+            new Token(TokenType.Dot, '.', null, 2),
+            new Token(TokenType.Identifier, 'call', null, 2),
+            new Token(TokenType.OpenParen, '(', null, 2),
+            new Token(TokenType.IntegerLit, '2', 2, 2),
+            new Token(TokenType.CloseParen, ')', null, 2),
+
+            new Token(TokenType.Dot, '.', null, 3),
+            new Token(TokenType.Identifier, 'call', null, 3),
+            new Token(TokenType.OpenParen, '(', null, 3),
+            new Token(TokenType.IntegerLit, '3', 3, 3),
+            new Token(TokenType.CloseParen, ')', null, 3),
+	    semicolon(3),
+	    eof(4),
+        ]
+    )
+
+    assert.deepEqual(
+        Scanner.scanText(
+`1 +
+2 +
+3`),
         [
             new Token(TokenType.IntegerLit, '1', 1, 1),
             new Token(TokenType.Plus, '+', null, 1),
             new Token(TokenType.IntegerLit, '2', 2, 2),
             new Token(TokenType.Plus, '+', null, 2),
             new Token(TokenType.IntegerLit, '3', 3, 3),
-            semicolon(4),
-            eof(5),
+	    semicolon(3),
+	    eof(3),
         ]
     )
 
     assert.deepEqual(
         Scanner.scanText(
             `fun foo(a, b) {
-                print("Hello !").method();
+                print("Hello !").method()
             }`
         ),
         [
@@ -48,15 +77,16 @@ function testScanner() {
             semicolon(2),
 
             new Token(TokenType.CloseBrace, '}', null, 3),
+	    semicolon(3),
             eof(3),
         ]
     )
 
     assert.deepEqual(
         Scanner.scanText(
-            `let arr = [];
-            arr.push(a);
-            arr.push(b);`
+            `let arr = []
+            arr.push(a)
+            arr.push(b)`
         ),
         [
             new Token(TokenType.Let, 'let', null, 1),
