@@ -15,7 +15,7 @@ export class Resolver {
 	locals = [] as Local[]
 	localCount = 0 // FIXME: I don't think I need this, I can just use .length, .push and .pop
 	scopeDepth = 0
-	constructor() {
+	constructor(public readonly functionName: string) {
 		this.id = Resolver.last++
 	}
 	beginScope() {
