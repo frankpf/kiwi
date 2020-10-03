@@ -1,0 +1,9 @@
+let a = false || "hi"; // hi
+let b = true || "hi"; // true
+print a;
+print b;
+
+let a = false && "hi"; // false
+let b = true && "hi"; // "hi"
+print a;
+print b;
