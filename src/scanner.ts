@@ -18,6 +18,26 @@ export class Scanner {
 		'debugger': TokenType.Debugger,
 	}
 
+	private static whitespaceChars = new Set([
+		' ',
+		'\r',
+		'\t',
+	])
+
+	private static lineEndingTokenTypes = new Set([
+		TokenType.CloseParen,
+		TokenType.CloseBrace,
+		TokenType.CloseBracket,
+		TokenType.Identifier,
+		TokenType.IntegerLit,
+		TokenType.DoubleLit,
+		TokenType.StringLit,
+		TokenType.True,
+		TokenType.False,
+		TokenType.Nil,
+		TokenType.Debugger,
+	])
+
 	private constructor(
 		private source: string,
 		private tokens: Token[] = [],
@@ -38,6 +58,10 @@ export class Scanner {
 		}
 
 		/* We're done, append one final EOF token */
+		const lastToken = this.tokens[this.tokens.length - 1]
+		if (Scanner.lineEndingTokenTypes.has(lastToken.type)) {
+			this.tokens.push(new Token(TokenType.Semicolon, ';', null, this.line))
+		}
 		this.tokens.push(new Token(TokenType.Eof, '', null, this.line))
 		return this.tokens
 	}
@@ -122,7 +146,7 @@ export class Scanner {
 			case '\t':
 				break
 			case '\n':
-				this.line++
+				this.handleNewline()
 				break
 			case '0':
 			case '1':
@@ -152,6 +176,27 @@ export class Scanner {
 
 	private isAlphaNumeric(c: string): boolean {
 		return this.isAlpha(c) || this.isDigit(c)
+	}
+
+	private handleNewline() {
+		while (Scanner.whitespaceChars.has(this.peek())) {
+			this.advance()
+		}
+
+		const nextChar = this.peek()
+		if (nextChar === '.') {
+			this.line++
+			return
+		}
+
+		const lastToken = this.tokens[this.tokens.length - 1]
+		if (Scanner.lineEndingTokenTypes.has(lastToken.type)) {
+			this.tokens.push(new Token(TokenType.Semicolon, ';', null, this.line))
+			this.line++
+			return
+		}
+
+		this.line++
 	}
 
 	private identifier() {
