@@ -135,6 +135,7 @@ function testParser() {
 		parse(
 			`let a = fun abc(x, y) {
 				print "hi"
+				2
 			}
 
 			a(1, 2)
@@ -154,22 +155,22 @@ function testParser() {
 					],
 					new Token(TokenType.Fun, 'fun', null, 1),
 					new Ast.Stmt.Return(
-						litExpr(null, -1),
+						litExpr(2, 3),
 					)
 				)
 			),
 			new Ast.Stmt.Expression(
 				new Ast.Expr.Call(
 					new Ast.Expr.LetAccess(
-						ident("a", 5),
+						ident("a", 6),
 					),
 					[
-						litExpr(1, 5),
-						litExpr(2, 5),
+						litExpr(1, 6),
+						litExpr(2, 6),
 					],
-					new Token(TokenType.CloseParen, ')', null, 5),
+					new Token(TokenType.CloseParen, ')', null, 6),
 				),
-				new Token(TokenType.Semicolon, ';', null, 5),
+				new Token(TokenType.Semicolon, ';', null, 6),
 			)
 		]
 	)

@@ -161,7 +161,13 @@ export class Parser {
 		const {statements} = this.finishBlockExpression(this.previous())
 		const lastStmt = statements[statements.length-1]
 		let returnStmt: Ast.Stmt.Return
-		if (!(lastStmt instanceof Ast.Stmt.Return)) {
+		if (lastStmt instanceof Ast.Stmt.Return) {
+			statements.pop()
+			returnStmt = lastStmt
+		} else if (lastStmt instanceof Ast.Stmt.Expression) {
+			statements.pop()
+			returnStmt = new Ast.Stmt.Return(lastStmt.expression)
+		} else {
 			returnStmt = new Ast.Stmt.Return(
 				new Ast.Expr.Literal(
 					null,
@@ -173,9 +179,6 @@ export class Parser {
 					)
 				)
 			)
-		} else {
-			statements.pop()
-			returnStmt = lastStmt
 		}
 		return new Ast.Expr.Function(identifier, paramList, statements, funcToken, returnStmt)
 	}
