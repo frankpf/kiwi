@@ -54,6 +54,23 @@ export class Parser {
 				return this.finishReturnStatement(this.previous())
 			}
 
+			// Must be checked before expression stmt!
+			// This is needed for Stmt.FunctionDeclaration to work
+			if (this.match(TokenType.Fun)) {
+				const func = this.finishFunctionExpression(this.previous(), {
+					kind: 'function',
+					ensureName: true,
+				})
+				this.consume(TokenType.Semicolon, 'Expected ";" after function declaration')
+				const name = func.name!
+				func.name = null
+
+				return new Ast.Stmt.LetDeclaration(
+					name,
+					func
+				)
+			}
+
 			return this.assignmentOrExpressionStatement()
 		} catch (err) {
 			if (err instanceof ParseError) {
@@ -137,27 +154,31 @@ export class Parser {
 	*/
 
 	private expression(): Ast.Expr {
-		if (this.match(TokenType.Fun)) {
-			return this.finishFunctionExpression(this.previous(), 'function')
-		}
 		return this.logicOr()
 	}
 
-	private finishFunctionExpression(funcToken: Token, kind: 'function' | 'class method') {
-		// TODO: Make this optional
-		const identifier = this.consume(TokenType.Identifier, `Expected ${kind} name`)
-		this.consume(TokenType.OpenParen, `Expected "(" after ${kind} name`)
+	private finishFunctionExpression(funcToken: Token, { kind, ensureName }: { kind: 'function' | 'class method', ensureName: boolean }) {
+		let name: Token | null = null
+		if (ensureName) {
+			name = this.consume(TokenType.Identifier, `Expected ${kind} name`)
+		} else if (this.match(TokenType.Identifier)) {
+			name = this.previous()
+		}
+		const nameInError = name === null ? `anonymous ${kind}` : `${name} ${kind}`
+
+
+		this.consume(TokenType.OpenParen, `Expected "(" after ${nameInError}`)
 		const paramList = [] as Token[]
 		if (this.match(TokenType.Identifier)) {
 			const firstParam = this.previous()
 			paramList.push(firstParam)
 			while (this.match(TokenType.Comma)) {
-				const param = this.consume(TokenType.Identifier, `Expected parameter name after comma in parameter list for ${identifier.lexeme} ${kind}`)
+				const param = this.consume(TokenType.Identifier, `Expected parameter name after comma in parameter list for ${nameInError}`)
 				paramList.push(param)
 			}
 		}
-		this.consume(TokenType.CloseParen, `Expected ")" after ${identifier.lexeme} ${kind} parameter list`)
-		this.consume(TokenType.OpenBrace, `Expected "{" before ${identifier.lexeme} ${kind} body`)
+		this.consume(TokenType.CloseParen, `Expected ")" after ${nameInError} parameter list`)
+		this.consume(TokenType.OpenBrace, `Expected "{" before ${nameInError} body`)
 		const {statements} = this.finishBlockExpression(this.previous())
 
 		// Desugar function return
@@ -182,7 +203,7 @@ export class Parser {
 				)
 			)
 		}
-		return new Ast.Expr.Function(identifier, paramList, statements, funcToken, returnStmt)
+		return new Ast.Expr.Function(name, paramList, statements, funcToken, returnStmt)
 	}
 
 	private logicOr(): Ast.Expr {
@@ -262,7 +283,7 @@ export class Parser {
 	}
 
 	private primary(): Ast.Expr {
-		// primary -> NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")" ;
+		// primary -> NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")"  | if_expr | function_expr | block_expr .
 		if (this.match(TokenType.False)) {
 			return new Ast.Expr.Literal(false, this.previous())
 		}
@@ -292,6 +313,10 @@ export class Parser {
 
 		if (this.match(TokenType.If)) {
 			return this.finishIfExpression()
+		}
+
+		if (this.match(TokenType.Fun)) {
+			return this.finishFunctionExpression(this.previous(), 'function')
 		}
 
 		if (this.match(TokenType.OpenBrace)) {
