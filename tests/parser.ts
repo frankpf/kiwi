@@ -133,7 +133,7 @@ function testParser() {
 
 	assert(
 		parse(
-			`let a = fun abc(x, y) {
+			`let a = fun (x, y) {
 				print "hi"
 				2
 			}
@@ -145,7 +145,51 @@ function testParser() {
 			new Ast.Stmt.LetDeclaration(
 				ident("a", 1),
 				new Ast.Expr.Function(
-					ident("abc", 1),
+					null,
+					[ident("x", 1), ident("y", 1)],
+					[
+						new Ast.Stmt.Print(
+							litExpr("hi", 2),
+							new Token(TokenType.Print, 'print', null, 2)
+						)
+					],
+					new Token(TokenType.Fun, 'fun', null, 1),
+					new Ast.Stmt.Return(
+						litExpr(2, 3),
+					)
+				)
+			),
+			new Ast.Stmt.Expression(
+				new Ast.Expr.Call(
+					new Ast.Expr.LetAccess(
+						ident("a", 6),
+					),
+					[
+						litExpr(1, 6),
+						litExpr(2, 6),
+					],
+					new Token(TokenType.CloseParen, ')', null, 6),
+				),
+				new Token(TokenType.Semicolon, ';', null, 6),
+			)
+		]
+	)
+
+	assert(
+		parse(
+			`fun a(x, y) {
+				print "hi"
+				2
+			}
+
+			a(1, 2)
+			`
+		),
+		[
+			new Ast.Stmt.LetDeclaration(
+				ident("a", 1),
+				new Ast.Expr.Function(
+					ident("a", 1),
 					[ident("x", 1), ident("y", 1)],
 					[
 						new Ast.Stmt.Print(
