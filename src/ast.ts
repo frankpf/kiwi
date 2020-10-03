@@ -54,7 +54,7 @@ export namespace Expr {
 
 	export class Function {
 		readonly _tag = 'Function'
-		constructor(readonly name: Token, readonly params: Token[], readonly body: Stmt[], readonly functionToken: Token, readonly returnStmt: Stmt.Return) {}
+		constructor(readonly name: Token | null, readonly params: Token[], readonly body: Stmt[], readonly functionToken: Token, readonly returnStmt: Stmt.Return) {}
 		get startToken() { return this.functionToken }
 	}
 
