@@ -1,4 +1,4 @@
-tests/interpreter
+interpreter
 kiwi
 dist/
 node_modules/

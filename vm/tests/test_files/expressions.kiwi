@@ -69,3 +69,27 @@ print nil || false
 ---
 $ stdout: foo
 print false || "foo"
+---
+$ stdout: false
+print false && false
+---
+$ stdout: nil
+print nil && nil
+---
+$ stdout: false
+print false && true
+---
+$ stdout: false
+print true && false
+---
+$ stdout: nil
+print nil && false
+---
+$ stdout: bar
+print "foo" && "bar"
+---
+$ stdout: false
+print "foo" && false
+---
+$ stdout: false
+print false && "bar"
