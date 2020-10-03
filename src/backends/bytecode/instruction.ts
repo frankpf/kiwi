@@ -1,10 +1,15 @@
 import * as Ast from '../../ast'
 import {_, TupleLength} from '../../utils'
 import {matchAll} from '../../match'
-import {TokenType} from '../../token'
-import {Resolver, Local} from '../../localresolver'
+import {Token, TokenType} from '../../token'
+import {Resolver} from '../../localresolver'
 
 type StrMap<A> = { [_: string]: A }
+
+const AnonFuncGenerator = (() => {
+	let i = 0
+	return { gen: () => `anon${i++}` }
+})()
 
 class DeclarationMap {
 
@@ -62,10 +67,15 @@ export namespace Instruction {
 		private _index: number | undefined
 		static globalConstants = {} as any
 
-		constructor(readonly constant: string, readonly mode: 'string' | 'function' = 'string') {}
+		constructor(readonly constant: string, readonly currentFunctionName: string, readonly mode: 'string' | 'function' = 'string') {}
 
 		encode(buf: InstructionBuffer) {
-			const constant = MakeConstant.globalConstants[this.constant]
+			const constantBuf = MakeConstant.globalConstants[this.currentFunctionName]
+			if (constantBuf === undefined) {
+				MakeConstant.globalConstants[this.currentFunctionName] = {}
+			}
+
+			const constant = MakeConstant.globalConstants[this.currentFunctionName][this.constant]
 			if (constant !== undefined) {
 				this._index = constant.index()
 				return
@@ -75,14 +85,10 @@ export namespace Instruction {
 			const prefix = `${marker}${this.constant.length}`
 			const index = buf.constants.push(`${prefix} ${this.constant}`) - 1
 			this._index = index
-			MakeConstant.globalConstants[this.constant] = this
+			MakeConstant.globalConstants[this.currentFunctionName][this.constant] = this
 		}
 
 		sizeInBytes() { return 0 }
-
-		static for(constant: string): MakeConstant {
-			return MakeConstant.globalConstants[constant]
-		}
 
 		index() {
 			if (this._index === undefined) {
@@ -299,7 +305,7 @@ export function fromAst(ast: Ast.Stmt[], { source }: { source?: string } = {}): 
 type FunctionDef = { arity: number, name: string }
 function instructionsFromAst(ast: Ast.Stmt[], _declMap?: DeclarationMap, _resolver?: Resolver): { instructions: Instruction.T[], declarationMap: DeclarationMap } {
 	const declMap = _declMap === undefined ? new DeclarationMap() : _declMap
-	const resolver = _resolver === undefined ? new Resolver() : _resolver
+	const resolver = _resolver === undefined ? new Resolver('toplevel') : _resolver
 	// TODO(repl): We need this for --replCompiler to work
 	// Instruction.MakeConstant.globalConstants = {}
 
@@ -390,7 +396,7 @@ function instructionsFromAst(ast: Ast.Stmt[], _declMap?: DeclarationMap, _resolv
 			LetAccess({identifier, startToken}) {
 				const localIndex = resolver.resolveLocal(identifier)
 				if (localIndex === null) {
-					const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme)
+					const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme, resolver.functionName)
 					return [mkIdentifier, new Instruction.GetGlobal(startToken.line, mkIdentifier)]
 				} else {
 					return [new Instruction.GetLocal(startToken.line, localIndex)]
@@ -426,9 +432,16 @@ function instructionsFromAst(ast: Ast.Stmt[], _declMap?: DeclarationMap, _resolv
 				return [...instrs, ...popInstrs]
 			},
 			Function({name, params, body, returnStmt, startToken}) {
-				const innerResolver = new Resolver()
+				const generatedName = name === null
+					? AnonFuncGenerator.gen()
+					: name.lexeme
+				const innerResolver = new Resolver(generatedName)
 				innerResolver.beginScope()
-				innerResolver.declareVariable(name)
+				if (name !== null) {
+					innerResolver.declareVariable(name)
+				} else {
+					innerResolver.declareVariable(new Token(TokenType.StringLit, '', '""', params[0].line))
+				}
 				innerResolver.markInitialized()
 				for (const param of params) {
 					innerResolver.declareVariable(param)
@@ -436,14 +449,12 @@ function instructionsFromAst(ast: Ast.Stmt[], _declMap?: DeclarationMap, _resolv
 				}
 				const {instructions: bodyInstrs} = instructionsFromAst(body, declMap, innerResolver)
 				const {instructions: returnInstrs} = instructionsFromAst([returnStmt], declMap, innerResolver)
-				const popInstrs = []
-
-				const funcInstrs = [...bodyInstrs, ...popInstrs, ...returnInstrs]
-				declMap.addFunction(name.lexeme, params.length, funcInstrs)
+				const funcInstrs = [...bodyInstrs, ...returnInstrs]
+				declMap.addFunction(generatedName, params.length, funcInstrs)
 
 
 
-				const mkIdentifier = new Instruction.MakeConstant(name.lexeme, 'function')
+				const mkIdentifier = new Instruction.MakeConstant(generatedName, resolver.functionName, 'function')
 				return [mkIdentifier, new Instruction.LoadFunction(startToken.line, mkIdentifier)]
 			},
 			Call({ callee, args, startToken }) {
@@ -463,7 +474,7 @@ function instructionsFromAst(ast: Ast.Stmt[], _declMap?: DeclarationMap, _resolv
 			const localIndex = resolver.resolveLocal(name)
 			if (localIndex === null) {
 				// FIXME: I think maybe assignment shouldn't try to generate a MakeConstant, only SetGlobal and GetGlobal should.
-				const mkIdentifier = new Instruction.MakeConstant(name.lexeme)
+				const mkIdentifier = new Instruction.MakeConstant(name.lexeme, resolver.functionName)
 				return [...exprMatcher(value), mkIdentifier, new Instruction.SetGlobal(name.line, mkIdentifier)]
 			} else {
 				return [...exprMatcher(value), new Instruction.SetLocal(name.line, localIndex)]
@@ -494,7 +505,7 @@ function instructionsFromAst(ast: Ast.Stmt[], _declMap?: DeclarationMap, _resolv
 		},
 		LetDeclaration({identifier, initializer}) {
 			resolver.declareVariable(identifier)
-			const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme)
+			const mkIdentifier = new Instruction.MakeConstant(identifier.lexeme, resolver.functionName)
 
 			const initializerInstrs = initializer !== undefined
 				? exprMatcher(initializer)
@@ -516,7 +527,7 @@ function instructionsFromAst(ast: Ast.Stmt[], _declMap?: DeclarationMap, _resolv
 			const line = exprInstrs[exprInstrs.length - 1].line
 			const returnInstr = new Instruction.Return(line)
 			return [...exprInstrs, returnInstr]
-		}
+		},
 	})
 
 	const instructions = ast.flatMap(stmtMatcher)
