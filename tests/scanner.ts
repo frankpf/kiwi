@@ -1,12 +1,12 @@
 // TODO
 import 'source-map-support/register'
 
-import {strict as assert} from 'assert'
+import {assert} from './assert'
 import {Token, TokenType} from '../src/token'
 import {Scanner} from '../src/scanner'
 
 function testScanner() {
-    assert.deepEqual(
+    assert(
         Scanner.scanText(
 `call(1)
 	.call(2)
@@ -34,7 +34,7 @@ function testScanner() {
         ]
     )
 
-    assert.deepEqual(
+    assert(
         Scanner.scanText(
 `1 +
 2 +
@@ -50,7 +50,7 @@ function testScanner() {
         ]
     )
 
-    assert.deepEqual(
+    assert(
         Scanner.scanText(
             `fun foo(a, b) {
                 print("Hello !").method()
@@ -82,7 +82,7 @@ function testScanner() {
         ]
     )
 
-    assert.deepEqual(
+    assert(
         Scanner.scanText(
             `let arr = []
             arr.push(a)

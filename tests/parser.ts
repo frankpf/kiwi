@@ -1,13 +1,13 @@
 import 'source-map-support/register'
 
-import {strict as assert} from 'assert'
+import {assert} from './assert'
 import {Token, TokenType} from '../src/token'
 import * as Ast from '../src/ast'
 import {parse, ident, litExpr} from './parser_helpers'
 
 
 function testParser() {
-	assert.deepEqual(
+	assert(
 		parse(`while true {
 			print 1 + 2 + 3
 		}`),
@@ -35,7 +35,7 @@ function testParser() {
 		]
 	)
 
-	assert.deepEqual(
+	assert(
 		parse(
 			`let a = 500 / 2
 			a = a + 100`
@@ -60,7 +60,7 @@ function testParser() {
 		]
 	)
 
-	assert.deepEqual(
+	assert(
 		parse(
 			`let a = 2 > 1
 			let b = (1 > 2)
@@ -131,11 +131,14 @@ function testParser() {
 		]
 	)
 
-	assert.deepEqual(
+	assert(
 		parse(
 			`let a = fun abc(x, y) {
 				print "hi"
-			}`
+			}
+
+			a(1, 2)
+			`
 		),
 		[
 			new Ast.Stmt.LetDeclaration(
@@ -154,6 +157,19 @@ function testParser() {
 						litExpr(null, -1),
 					)
 				)
+			),
+			new Ast.Stmt.Expression(
+				new Ast.Expr.Call(
+					new Ast.Expr.LetAccess(
+						ident("a", 5),
+					),
+					[
+						litExpr(1, 5),
+						litExpr(2, 5),
+					],
+					new Token(TokenType.CloseParen, ')', null, 5),
+				),
+				new Token(TokenType.Semicolon, ';', null, 5),
 			)
 		]
 	)
