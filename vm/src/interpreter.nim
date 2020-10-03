@@ -327,7 +327,7 @@ proc interpret*(self: var Interpreter): void =
         of Opcode.Jump:
             let bytesToJumpOver = self.readUint16()
             if bytesToJumpOver > 0:
-              frame.ic += int(bytesToJumpOver - 1)
+              frame.ic += bytesToJumpOver
             else:
               # Backwards jump. We're at the third byte:
               # [ Opcode.Jump ] [ high bits ] [ low bits ]
