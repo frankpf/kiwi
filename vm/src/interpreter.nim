@@ -6,7 +6,7 @@ from strformat import fmt
 from times import getTime, `-`, inMilliseconds
 from tables import Table, TableRef, newTable, `[]`, `[]=`, initTable, pairs, toTable, hasKey, `$`
 from interpreter_value import Bytecode, BytecodeVersion
-from strutils import split, parseInt, splitLines, parseInt, startsWith, contains, strip, join
+from strutils import split, parseInt, splitLines, parseInt, startsWith, contains, strip, join, find, repeat
 from parseutils import parseBiggestFloat
 from osproc import startProcess, inputHandle, poUsePath, poEvalCommand
 from os import sleep
@@ -341,7 +341,17 @@ proc interpret*(self: var Interpreter): void =
         echoErr fmt"Current frame ic={frame.ic}, frameCount={self.frameCount}, stackTop={self.stackTop}, firstSlotIndex={frame.firstSlotIndex}"
         if debugMode():
           let stackStr = self.stack[0..<self.stackTop + 10].mapIt(it.printKiwiValue).join(" | ")
-          echoErr fmt"Current stack: {stackStr}"
+          var idx = 0
+          var i = 0
+          for ch in stackStr:
+            idx += 1
+            if ch == '|':
+              i += 1
+            if i == self.stackTop:
+              break
+          let stackTopString = " ".repeat("Current stack: ".len) & " ".repeat(idx) & " ^"
+          echoErr fmt"Current stack: {stackStr}, stackIdx={idx}, i={i}"
+          echoErr stackTopString
           let instructions = frame.function.bytecode.instructions.mapIt(Opcode(it))
           echoErr fmt"Instructions: {instructions}"
         let timeTaken = (getTime() - start).inMilliseconds
@@ -654,9 +664,10 @@ macro binaryCmpOp(self: var Interpreter, op: untyped): untyped =
 type RuntimeError* = object of Exception 
 proc runtimeError(self: var Interpreter, msg: string): void =
     let frame = self.frames[self.frameCount]
-    let line = self.findLineWithError(frame.ic)
+    # FIXME: Use line info for errors
+    #let line = self.findLineWithError(frame.ic)
     #let line = self.bytecode.lineNumbers[opcodeLineIndex]
-    let errorMsg = fmt"Error in line {line}: {msg}"
+    let errorMsg = fmt"Error: {msg}"
     self.resetStack
     raise newException(RuntimeError, errorMsg)
 
