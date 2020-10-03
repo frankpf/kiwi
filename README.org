@@ -8,13 +8,13 @@ Kiwi is a little programming language. It is dynamically typed and interpreted.
 #+BEGIN_SRC typescript
 let fib = fun f(n) {
    if n < 2 {
-       return n;
+       return n
    }
-   return f(n - 1) + f(n - 2);
-};
+   return f(n - 1) + f(n - 2)
+}
 
-print "fib(15) =";
-print fib(15);
+print "fib(15) ="
+print fib(15)
 #+END_SRC
 
 ** Status
