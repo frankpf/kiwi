@@ -174,12 +174,6 @@ proc interpret*(self: var Interpreter): void =
         case opcode:
         of Opcode.LoadConstant:
             self.push(self.readConstant())
-            #self.registerOpcodeArg(offset)
-            #let constant = self.readConstant()
-            #let offset = instructions[self.ic+1]
-            #let constant = constants[offset]
-            #self.push(constant)
-            #self.ic += 1
         of Opcode.LoadNil:
             self.push(createNil())
         of Opcode.LoadTrue:
@@ -260,12 +254,6 @@ proc interpret*(self: var Interpreter): void =
             let name = downcast[ObjString](constant.obj)
             self.globals[name.hash] = self.peek(0)
             discard self.pop()
-            #let offset = instructions[self.ic+1]
-            #self.registerOpcodeArg(offset)
-            #let name = downcast[ObjString](constants[offset].obj)
-            #self.globals[name.hash] = self.peek(0)
-            #discard self.pop()
-            #self.ic += 1
         of Opcode.GetGlobal:
             let constant = self.readConstant()
             let name = downcast[ObjString](constant.obj)
@@ -276,17 +264,6 @@ proc interpret*(self: var Interpreter): void =
               # FIXME: I don't think this is the right message, the user isn't necessarily
               # trying to access a global variable. It could be a local variable too
               self.runtimeError(fmt"Access to undefined global variable '{printObjString(name)}'")
-
-            #let offset = instructions[self.ic+1]
-            #self.registerOpcodeArg(offset)
-            #let name = downcast[ObjString](constants[offset].obj)
-            #try:
-            #  let value = self.globals[name.hash]
-            #  self.push(value)
-            #  self.ic += 1
-            #except KeyError:
-            #  self.ic += 1
-            #  self.runtimeError(fmt"Access to undefined global variable '{printObjString(name)}'")
         of Opcode.SetGlobal:
             let constant = self.readConstant()
             let name = downcast[ObjString](constant.obj)
@@ -296,34 +273,14 @@ proc interpret*(self: var Interpreter): void =
                 self.runtimeError(fmt"Assignment to undefined global variable '{printObjString(name)}'")
             self.globals[name.hash] = self.peek(0)
             discard self.pop()
-
-
-            #let offset = instructions[self.ic+1]
-            #self.registerOpcodeArg(offset)
-            #let name = downcast[ObjString](constants[offset].obj)
-            #if not self.globals.hasKey(name.hash):
-            #    self.runtimeError(fmt"Assignment to undefined global variable '{printObjString(name)}'")
-            #self.globals[name.hash] = self.peek(0)
-            #discard self.pop()
-            #self.ic += 1
         of Opcode.GetLocal:
             let offset = self.readUint8()
             self.push(self.readSlotAt(frame, int(offset)))
             self.registerOpcodeArg(offset)
-
-            #let offset = instructions[self.ic+1]
-            #self.registerOpcodeArg(offset)
-            #self.push(self.stack[offset])
-            #self.ic += 1
         of Opcode.SetLocal:
             let offset = self.readUint8()
             self.writeSlotAt(frame, int(offset), self.peek(0))
             self.registerOpcodeArg(offset)
-
-            #let offset = instructions[self.ic+1]
-            #self.registerOpcodeArg(offset)
-            #self.stack[offset] = self.peek(0)
-            #self.ic += 1
         of Opcode.Jump:
             let bytesToJumpOver = self.readUint16()
             if bytesToJumpOver > 0:
@@ -334,30 +291,12 @@ proc interpret*(self: var Interpreter): void =
               #                              ^ frame.ic
               # so we need to subtract 2 from the jump offset
               frame.ic += (bytesToJumpOver - 2)
-
-            #let highBits = instructions[self.ic+1].int16
-            #let lowBits = instructions[self.ic+2].int16
-            #let bytesToJumpOver = int((highBits shl 8) or lowBits)
-            #self.registerOpcodeArg(bytesToJumpOver)
-            #if bytesToJumpOver > 0:
-            #  # Account for jump's 2 arguments
-            #  self.ic += bytesToJumpOver + 2
-            #else:
-            #  self.ic += bytesToJumpOver
         of Opcode.JumpIfFalse:
             let bytesToJumpOver = self.readUint16()
             if not self.peek(0).isTruthy:
                 echoErr fmt"Jumping over {bytesToJumpOver} bytes"
                 frame.ic += bytesToJumpOver
             discard self.pop()
-            #let highBits = instructions[self.ic+1].int16
-            #let lowBits = instructions[self.ic+2].int16
-            #let bytesToJumpOver = int((highBits shl 8) or lowBits)
-            #self.registerOpcodeArg(bytesToJumpOver)
-            #if not self.peek(0).isTruthy:
-            #    self.ic += bytesToJumpOver
-            #discard self.pop()
-            #self.ic += 2
         of Opcode.Return:
             let result = self.popPtr()
 
@@ -426,7 +365,7 @@ proc callValue(self: var Interpreter, callee: Value, argCount: int): void =
   else:
     discard
 
-  self.runtimeError("Can only call functions and classes")
+  self.runtimeError("Can only call functions and class methods")
 
 proc call(self: var Interpreter, funcObj: ObjFunction, argCount: int): void =
   var frame = self.frames[self.frameCount].addr
