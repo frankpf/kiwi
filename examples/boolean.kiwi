@@ -1,9 +1,5 @@
-let a = false || "hi"; // hi
-let b = true || "hi"; // true
-print a;
-print b;
+print false || "hi"; // hi
+print true || "hi"; // true
 
-let a = false && "hi"; // false
-let b = true && "hi"; // "hi"
-print a;
-print b;
+print false && "hi"; // false
+print true && "hi"; // "hi"
