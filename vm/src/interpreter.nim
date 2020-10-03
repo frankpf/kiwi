@@ -230,11 +230,11 @@ proc interpret*(self: var Interpreter): void =
                 discard
         of Opcode.Or:
             let b = self.pop()
-            if b.isTruthy:
-                self.push(createBool(true))
+            let a = self.pop()
+            if a.isTruthy:
+                self.push(a)
             else:
-                let a = self.pop()
-                self.push(createBool(a.isTruthy))
+                self.push(b)
         of Opcode.And:
             let b = self.pop()
             if not b.isTruthy:
@@ -435,8 +435,8 @@ proc parseFunctionDef(lines: seq[string]): ParseFunctionDefResult =
   let instructions = instructionsText.parseInstructions
   let constants = constantsText.mapIt(parseConstant(it))
   let linenums = linenumText.mapIt(it.parseInt)
-  
-  let bytecode = Bytecode(version: BytecodeVersion(0), instructions: instructions, constants: constants, lineNumbers: linenums) 
+
+  let bytecode = Bytecode(version: BytecodeVersion(0), instructions: instructions, constants: constants, lineNumbers: linenums)
   echoErr fmt"Parsed {instructionsText.len} instructions, {constantsText.len} constants and {linenumText.len} line numbers"
   return (name: name, arity: arity, bytecode: bytecode)
 
@@ -636,7 +636,7 @@ macro binaryOp(self: var Interpreter, op: untyped): untyped =
             self.push(createDouble(`op`(a.doubleVal, float64(b.intVal))))
         elif a.kind == ValueTag.Double and b.kind == ValueTag.Double:
             self.push(createDouble(`op`(a.doubleVal, b.doubleVal)))
-        else: 
+        else:
             self.runtimeError(`errorMsg`)
     result
 
@@ -661,7 +661,7 @@ macro binaryCmpOp(self: var Interpreter, op: untyped): untyped =
             self.runtimeError(`errorMsg`)
     result
 
-type RuntimeError* = object of Exception 
+type RuntimeError* = object of Exception
 proc runtimeError(self: var Interpreter, msg: string): void =
     let frame = self.frames[self.frameCount]
     # FIXME: Use line info for errors
@@ -675,12 +675,12 @@ proc runtimeError(self: var Interpreter, msg: string): void =
 # because we only call it when there's an error, but we should
 # still find a more efficient scheme for reporting line numbers
 # in runtime errors.
-# Easy way would be to just increment opcode starts in interpreter 
+# Easy way would be to just increment opcode starts in interpreter
 proc findLineWithError(self: var Interpreter, maxIc: int): int =
   let frame = self.frames[self.frameCount - 1]
   let slot = frame.ic - frame.firstSlotIndex - 1
   return frame.function.bytecode.lineNumbers[slot]
-  ## We're going to go through all the instructions while counting the 
+  ## We're going to go through all the instructions while counting the
   ## number of opcodes and ignoring other chunks (e.g. offsets).
   #var lastInstructionStartIndex = 0
   #var skipNext = false
