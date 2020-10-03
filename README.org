@@ -6,11 +6,11 @@ Kiwi is a little programming language. It is dynamically typed and interpreted.
 [[https://kiwi.frankpf.com][Try it on the Kiwi playground!]]
 
 #+BEGIN_SRC typescript
-let fib = fun f(n) {
+fun fib(n) {
    if n < 2 {
 	n
    } else {
-	f(n - 1) + f(n - 2)
+	fib(n - 1) + fib(n - 2)
    }
 }
 
