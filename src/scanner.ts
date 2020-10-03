@@ -34,6 +34,7 @@ export class Scanner {
 		TokenType.StringLit,
 		TokenType.True,
 		TokenType.False,
+		TokenType.Return,
 		TokenType.Nil,
 		TokenType.Debugger,
 	])
