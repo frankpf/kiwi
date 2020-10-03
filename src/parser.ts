@@ -107,8 +107,9 @@ export class Parser {
 	private finishWhileStatement(): Ast.Stmt.While {
 		const condition = this.expression()
 		this.consume(TokenType.OpenBrace, 'Expected "{" after while condition.')
-		const thenBlock = this.finishBlockExpression(this.previous())
-		return new Ast.Stmt.While(condition, thenBlock)
+		const block = this.finishBlockExpression(this.previous())
+		this.consume(TokenType.Semicolon, 'Expected ";" after while block.')
+		return new Ast.Stmt.While(condition, block)
 	}
 
 	private finishLetDeclarationStatement(): Ast.Stmt {
