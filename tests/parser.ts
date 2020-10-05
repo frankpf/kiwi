@@ -189,7 +189,7 @@ function testParser() {
 			new Ast.Stmt.LetDeclaration(
 				ident("a", 1),
 				new Ast.Expr.Function(
-					ident("a", 1),
+					null,
 					[ident("x", 1), ident("y", 1)],
 					[
 						new Ast.Stmt.Print(
