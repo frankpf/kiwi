@@ -61,7 +61,7 @@ export class Parser {
 					kind: 'function',
 					ensureName: true,
 				})
-				this.consume(TokenType.Semicolon, 'Expected ";" after function declaration')
+				this.expectSemicolon('Expected ";" after function declaration')
 				const name = func.name!
 				func.name = null
 
@@ -91,13 +91,13 @@ export class Parser {
 			)
 		} else {
 			const expr = this.expression()
-			this.consume(TokenType.Semicolon, 'Expected ";" after return value')
+			this.expectSemicolon('Expected ";" after return value')
 			return new Ast.Stmt.Return(expr)
 		}
 	}
 
 	private finishDebuggerStatement(debuggerToken: Token): Ast.Stmt.Debugger {
-		this.consume(TokenType.Semicolon, 'Expected ";" after debugger statement')
+		this.expectSemicolon('Expected ";" after debugger statement')
 		return new Ast.Stmt.Debugger(debuggerToken)
 	}
 
@@ -110,14 +110,14 @@ export class Parser {
 
 			if (expr instanceof Ast.Expr.LetAccess) {
 				const identifier = expr.identifier
-				this.consume(TokenType.Semicolon, 'Expected ";" after assignment')
+				this.expectSemicolon('Expected ";" after assignment')
 				return new Ast.Stmt.Assignment(identifier, value)
 			}
 
 			this.error(equals, 'Invalid assignment target')
 		}
 
-		this.consume(TokenType.Semicolon, 'Expected ";" after assignment')
+		this.expectSemicolon('Expected ";" after assignment')
 		return new Ast.Stmt.Expression(expr, this.previous())
 	}
 
@@ -125,7 +125,7 @@ export class Parser {
 		const condition = this.expression()
 		this.consume(TokenType.OpenBrace, 'Expected "{" after while condition.')
 		const block = this.finishBlockExpression(this.previous())
-		this.consume(TokenType.Semicolon, 'Expected ";" after while block.')
+		this.expectSemicolon('Expected ";" after while block.')
 		return new Ast.Stmt.While(condition, block)
 	}
 
@@ -135,20 +135,20 @@ export class Parser {
 		if (this.match(TokenType.Equal)) {
 			initializer = this.expression()
 		}
-		this.consume(TokenType.Semicolon, 'Expected ";" after let initializer')
+		this.expectSemicolon('Expected ";" after let initializer')
 		return new Ast.Stmt.LetDeclaration(identifier, initializer)
 	}
 
 	private finishPrintStatement(printToken: Token) {
 		const expr = this.expression()
-		this.consume(TokenType.Semicolon, 'Expected ";" after expression')
+		this.expectSemicolon('Expected ";" after expression')
 		return new Ast.Stmt.Print(expr, printToken)
 	}
 
 	/*
 	private expressionStatement() {
 		const expr = this.expression()
-		this.consume(TokenType.Semicolon, 'Expected ";" after expression')
+		this.expectSemicolon('Expected ";" after expression')
 		return new Ast.Stmt.Expression(expr)
 	}
 	*/
@@ -316,7 +316,10 @@ export class Parser {
 		}
 
 		if (this.match(TokenType.Fun)) {
-			return this.finishFunctionExpression(this.previous(), 'function')
+			return this.finishFunctionExpression(this.previous(), {
+				kind: 'function',
+				ensureName: false
+			})
 		}
 
 		if (this.match(TokenType.OpenBrace)) {
@@ -368,6 +371,14 @@ export class Parser {
 			expr = new Ast.Expr.Binary(expr, operator, right)
 		}
 		return expr
+	}
+
+	private expectSemicolon(message: string) {
+		// Semicolon is optional before a } or )
+		if (this.check(TokenType.CloseBrace) || this.check(TokenType.CloseParen)) {
+			return
+		}
+		this.consume(TokenType.Semicolon, message)
 	}
 
 	private consume(type: TokenType, message: string): Token {
