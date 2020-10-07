@@ -50,10 +50,9 @@ class DeclarationMap {
 }
 
 export namespace Instruction {
-	export type T = Instr<any>
+	export type T = Instr
 
-	interface Instr<T> {
-		readonly _tag: T
+	interface Instr {
 		readonly line: number
 		sizeInBytes(): number
 		encode(buf: InstructionBuffer): void
@@ -61,7 +60,7 @@ export namespace Instruction {
 
 	// FIXME: oof we probably need to refactor the whole Instruction architecture, I don't think this makes sense
 	// MakeConstant is not a real instruction, we just use it to create constants without a corresponding instruction
-	export class MakeConstant implements Instr<'MakeConstant'> {
+	export class MakeConstant implements Instr {
 		readonly _tag = 'MakeConstant'
 		line!: number
 		private _index: number | undefined
@@ -98,63 +97,56 @@ export namespace Instruction {
 		}
 	}
 
-	export class SetGlobal implements Instr<'SetGlobal'> {
+	export class SetGlobal implements Instr {
 		readonly _tag = 'SetGlobal'
 		constructor(readonly line: number, readonly constant: MakeConstant) {}
 
 		encode(buf: InstructionBuffer) {
-			buf.instructions.push(`set_global ${this.constant.index()}`)
+			buf.instructions.push(`SetGlobal ${this.constant.index()}`)
 			buf.lineNumbers.push(this.line)
 		}
 
 		sizeInBytes() { return 2 }
 	}
 
-	export class GetGlobal implements Instr<'GetGlobal'> {
+	export class GetGlobal implements Instr {
 		readonly _tag = 'GetGlobal'
 		constructor(readonly line: number, readonly constant: MakeConstant) {}
 
 		encode(buf: InstructionBuffer) {
-			buf.instructions.push(`get_global ${this.constant.index()}`)
+			buf.instructions.push(`GetGlobal ${this.constant.index()}`)
 			buf.lineNumbers.push(this.line)
 		}
 
 		sizeInBytes() { return 2 }
 	}
 
-	export class LoadFunction implements Instr<'LoadFunction'> {
+	export class LoadFunction implements Instr {
 		readonly _tag = 'LoadFunction'
 		constructor(readonly line: number, readonly constant: MakeConstant) {}
 
 		encode(buf: InstructionBuffer) {
-			buf.instructions.push(`load_function ${this.constant.index()}`)
+			buf.instructions.push(`LoadConstant ${this.constant.index()}`)
 			buf.lineNumbers.push(this.line)
 		}
 
 		sizeInBytes() { return 2 }
 	}
 
-	export const Call = SimpleInstr<'call', [number]>('call', 1)
 
-	export const SetLocal = SimpleInstr<'set_local', [number]>('set_local', 1)
-	export type SetLocal = InstanceType<typeof SetLocal>
-
-	export const GetLocal = SimpleInstr<'get_local', [number]>('get_local', 1)
-	export type GetLocal = InstanceType<typeof GetLocal>
-
-	export class DefineGlobal implements Instr<'DefineGlobal'> {
+	export class DefineGlobal implements Instr {
 		readonly _tag = 'DefineGlobal'
 		constructor(readonly line: number, readonly constant: MakeConstant) {}
 
 		encode(buf: InstructionBuffer): void {
-			buf.instructions.push(`define_global ${this.constant.index()}`)
+			buf.instructions.push(`DefineGlobal ${this.constant.index()}`)
 			buf.lineNumbers.push(this.line)
 		}
 
 		sizeInBytes() { return 2 }
 	}
 
-	export class LoadConstant implements Instr<'LoadConstant'> {
+	export class LoadConstant implements Instr {
 		readonly _tag = 'LoadConstant'
 		constructor(readonly line: number, readonly value: string | number, private isDouble: boolean) {}
 
@@ -166,7 +158,7 @@ export namespace Instruction {
 				prefix = `s${this.value.length}`
 			}
 			let len = buf.constants.push(`${prefix} ${this.value}`)
-			buf.instructions.push(`load_constant ${len - 1}`)
+			buf.instructions.push(`LoadConstant ${len - 1}`)
 			buf.lineNumbers.push(this.line)
 		}
 
@@ -174,13 +166,13 @@ export namespace Instruction {
 	}
 
 	export enum JumpMode { IfFalse, Always }
-	export class Jump implements Instr<'Jump'> {
+	export class Jump implements Instr {
 		readonly _tag = 'Jump'
 
 		constructor(readonly line: number, readonly mode: JumpMode, readonly jumpOver: number) {}
 
 		encode(buf: InstructionBuffer): void {
-			const opcode = this.mode === JumpMode.Always ? 'jump' : 'jump_if_false'
+			const opcode = this.mode === JumpMode.Always ? 'Jump' : 'JumpIfFalse'
 
 			// We're going to use two bytes in the interpreter for the jump offset.
 			// TODO: Should this be encoded in the bytecode generator?
@@ -198,64 +190,33 @@ export namespace Instruction {
 		sizeInBytes() { return 3 }
 	}
 
-	export const Print = SimpleInstr('print')
-	export type Print = InstanceType<typeof Print>
+	export const Call = SimpleInstr<[number]>('Call', 1)
+	export const SetLocal = SimpleInstr<[number]>('SetLocal', 1)
+	export const GetLocal = SimpleInstr<[number]>('GetLocal', 1)
 
+	export const Print = SimpleInstr('Print')
 	export const Debugger = SimpleInstr('Debugger')
-
-	export const Pop = SimpleInstr('pop')
-	export type Pop = InstanceType<typeof Pop>
-
-	export const Return = SimpleInstr('return')
-	export type Return = InstanceType<typeof Return>
-
-	export const LoadNil = SimpleInstr('load_nil')
-	export type LoadNil = InstanceType<typeof LoadNil>
-
-	export const LoadTrue = SimpleInstr('load_true')
-	export type LoadTrue = InstanceType<typeof LoadTrue>
-
-	export const LoadFalse = SimpleInstr('load_false')
-	export type LoadFalse = InstanceType<typeof LoadFalse>
-
-	export const Negate = SimpleInstr('negate')
-	export type Negate = InstanceType<typeof Negate>
-
-	export const Not = SimpleInstr('not')
-	export type Not = InstanceType<typeof Not>
-
+	export const Pop = SimpleInstr('Pop')
+	export const Return = SimpleInstr('Return')
+	export const LoadNil = SimpleInstr('LoadNil')
+	export const LoadTrue = SimpleInstr('LoadTrue')
+	export const LoadFalse = SimpleInstr('LoadFalse')
+	export const Negate = SimpleInstr('Negate')
+	export const Not = SimpleInstr('Not')
 	export const Or = SimpleInstr('Or')
 	export const And = SimpleInstr('And')
+	export const Subtract = SimpleInstr('Sub')
+	export const Add = SimpleInstr('Add')
+	export const Multiply = SimpleInstr('Mul')
+	export const Divide = SimpleInstr('Div')
+	export const Equal = SimpleInstr('Eql')
+	export const Greater = SimpleInstr('Ge')
+	export const GreaterEqual = SimpleInstr('Geq')
+	export const Less = SimpleInstr('Le')
+	export const LessEqual = SimpleInstr('Leq')
 
-	export const Subtract = SimpleInstr('sub')
-	export type Subtract = InstanceType<typeof Subtract>
-
-	export const Add = SimpleInstr('add')
-	export type Add = InstanceType<typeof Add>
-
-	export const Multiply = SimpleInstr('mul')
-	export type Multiply = InstanceType<typeof Multiply>
-
-	export const Divide = SimpleInstr('div')
-	export type Divide = InstanceType<typeof Divide>
-
-	export const Equal = SimpleInstr('eql')
-	export type Equal = InstanceType<typeof Equal>
-
-	export const Greater = SimpleInstr('ge')
-	export type Greater = InstanceType<typeof Greater>
-
-	export const GreaterEqual = SimpleInstr('geq')
-	export type GreaterEqual = InstanceType<typeof GreaterEqual>
-
-	export const Less = SimpleInstr('le')
-	export type Less = InstanceType<typeof Less>
-
-	export const LessEqual = SimpleInstr('leq')
-	export type LessEqual = InstanceType<typeof LessEqual>
-
-	function SimpleInstr<T extends string, Args extends any[] = []>(instr: T, numArgs: TupleLength<Args> | 0 = 0) {
-		const classRef: { new(line: number, ...argList: TupleLength<Args> extends 0 ? never : Args): Instr<T> } = class implements Instr<T> {
+	function SimpleInstr<Args extends any[] = []>(instr: string, numArgs: TupleLength<Args> | 0 = 0) {
+		const classRef: { new(line: number, ...argList: TupleLength<Args> extends 0 ? never : Args): Instr } = class implements Instr {
 			readonly _tag = instr
 			args: any[]
 			constructor(readonly line: number, ...argList: TupleLength<Args> extends 0 ? never : Args) {

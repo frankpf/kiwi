@@ -316,9 +316,6 @@ proc interpret*(self: var Interpreter): void =
               echoErr "HASH: {s}"
               #printKiwiValue(v)
               echoErr "<-------------------"
-        of Opcode.LoadFunction:
-            let constant = self.readConstant()
-            self.push(constant)
         of Opcode.CallFunction:
             let argCount = self.readUint8()
             let fnVal = self.peek(argCount)
@@ -412,7 +409,7 @@ type Opcode* {.pure.} = enum
     # Control flow
     Jump, JumpIfFalse,
     # Functions,
-    LoadFunction, CallFunction,
+    CallFunction,
 
 type ParseFunctionDefResult = tuple[name: string, arity: int, bytecode: Bytecode]
 
@@ -483,37 +480,36 @@ proc parseTextualBytecode*(bytecodeText: string): ObjFunction =
     return fn
 
 const textToOpcode = {
-    "load_nil": Opcode.LoadNil,
-    "load_true": Opcode.LoadTrue,
-    "load_false": Opcode.LoadFalse,
-    "return": Opcode.Return,
-    "negate": Opcode.Negate,
+    "LoadNil": Opcode.LoadNil,
+    "LoadTrue": Opcode.LoadTrue,
+    "LoadFalse": Opcode.LoadFalse,
+    "Return": Opcode.Return,
+    "Negate": Opcode.Negate,
     "Or": Opcode.Or,
     "And": Opcode.And,
-    "add": Opcode.Add,
-    "sub": Opcode.Sub,
-    "div": Opcode.Div,
-    "mul": Opcode.Mul,
-    "eql": Opcode.Eql,
-    "ge": Opcode.Ge,
-    "geq": Opcode.Geq,
-    "le": Opcode.Le,
-    "leq": Opcode.Leq,
-    "print": Opcode.Print,
-    "pop": Opcode.Pop,
-    "not": Opcode.Not,
+    "Add": Opcode.Add,
+    "Sub": Opcode.Sub,
+    "Div": Opcode.Div,
+    "Mul": Opcode.Mul,
+    "Eql": Opcode.Eql,
+    "Ge": Opcode.Ge,
+    "Geq": Opcode.Geq,
+    "Le": Opcode.Le,
+    "Leq": Opcode.Leq,
+    "Print": Opcode.Print,
+    "Pop": Opcode.Pop,
+    "Not": Opcode.Not,
     "Debugger": Opcode.Debugger,
 }.toTable
 
 const opcodesWithOffset = {
-    "load_function": Opcode.LoadFunction,
-    "load_constant": Opcode.LoadConstant,
-    "define_global": Opcode.DefineGlobal,
-    "get_global": Opcode.GetGlobal,
-    "set_global": Opcode.SetGlobal,
-    "get_local": Opcode.GetLocal,
-    "set_local": Opcode.SetLocal,
-    "call": Opcode.CallFunction,
+    "LoadConstant": Opcode.LoadConstant,
+    "DefineGlobal": Opcode.DefineGlobal,
+    "GetGlobal": Opcode.GetGlobal,
+    "SetGlobal": Opcode.SetGlobal,
+    "GetLocal": Opcode.GetLocal,
+    "SetLocal": Opcode.SetLocal,
+    "Call": Opcode.CallFunction,
 }.toTable
 
 type BytecodeParseError = object of Exception
@@ -547,13 +543,13 @@ proc parseInstructions(lines: seq[string]): seq[uint8] =
     var result: seq[uint8]
     var cont = false
     for instruction in lines:
-        if instruction.match(re"jump_if_false|jump -?\d"):
-          let opcode = if instruction.startsWith("jump_if_false"):
+        if instruction.match(re"JumpIfFalse|Jump -?\d"):
+          let opcode = if instruction.startsWith("JumpIfFalse"):
             Opcode.JumpIfFalse
           else:
             Opcode.Jump
           result.add(opcode.uint8)
-          let bytesToJumpOver = instruction.split(re"jump.* ")[1].parseInt
+          let bytesToJumpOver = instruction.split(re"Jump.* ")[1].parseInt
           let highBits = ((bytesToJumpOver shr 8) and 0xff).uint8
           let lowBits = ((bytesToJumpOver) and 0xff).uint8
           result.add(highBits.uint8)
